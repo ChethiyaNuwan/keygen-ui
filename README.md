@@ -53,6 +53,7 @@ Keygen UI is a comprehensive, enterprise-grade frontend application that provide
 - **Quick Actions** - Easy access to common management tasks
 
 ### 🎫 License Management
+- **Validation** - Ask the server whether a license is usable and see exactly why not (`EXPIRED`, `SUSPENDED`, `TOO_MANY_MACHINES`, …)
 - **Complete CRUD Operations** - Create, read, update, delete licenses with professional dialogs
 - **Advanced Search & Filtering** - Find licenses by status, user, or policy
 - **License Actions** - Suspend, reinstate, renew licenses with one click
@@ -71,6 +72,14 @@ Keygen UI is a comprehensive, enterprise-grade frontend application that provide
 - **Distribution Strategies** - Licensed, Open, and Closed distribution models
 - **Platform Support** - Multi-platform configuration and management
 - **Metadata Management** - Custom product information and settings
+- **Product Tokens** - Mint product-scoped tokens for CI, so build pipelines never hold an admin token
+
+### 🚀 Release & Artifact Management
+- **Versioned Releases** - Create, edit, publish and yank releases per product and channel
+- **Artifact Uploads** - Upload build files straight to your storage with progress, via presigned URLs
+- **Upload Processing** - Artifacts are polled until the server marks them `UPLOADED`
+- **Signed Downloads** - Presigned download links for published artifacts
+- **Server-derived Metadata** - Platform and architecture options come from what you have actually published
 
 ### 🛡️ Policy Management
 - **Smart Policy Creation** - API-compliant minimal parameter approach
@@ -95,7 +104,8 @@ Keygen UI is a comprehensive, enterprise-grade frontend application that provide
 - **Event Selection** - Subscribe to 35+ event types organized by category
 - **Webhook Testing** - Send test events to validate endpoints
 - **Status Management** - Enable/disable webhooks with instant toggles
-- **Delivery Tracking** - Monitor webhook delivery history and success rates
+- **Delivery Tracking** - Monitor delivery history with real status and HTTP response codes
+- **Retry Failed Deliveries** - Re-send an event whose endpoint was briefly down
 - **Security** - Signing key support for secure webhook verification
 
 ### 👥 User Administration
@@ -264,7 +274,38 @@ const webhook = await api.webhooks.create({
   endpoint: 'https://myapp.com/webhooks',
   events: ['license.created', 'license.expired']
 })
+
+// Example: Validate a license — reports why it is unusable, not just that it is
+const { meta } = await api.licenses.validate('license-123')
+// meta.valid, meta.code (EXPIRED | SUSPENDED | TOO_MANY_MACHINES | …), meta.detail
+
+// Example: Publish a release and upload a build artifact
+const release = await api.releases.create({
+  productId: 'product-123',
+  version: '1.2.0',
+  channel: 'stable'
+})
+
+const { artifact, uploadUrl } = await api.artifacts.create({
+  releaseId: release.data!.id,
+  filename: 'app-1.2.0-windows-x86_64.exe',
+  filesize: file.size,
+  platform: 'windows',
+  arch: 'x86_64'
+})
+
+await api.artifacts.uploadFile(uploadUrl, file, percent => console.log(percent))
+await api.releases.publish(release.data!.id)
+
+// Example: Mint a product-scoped token for CI (shown once — it cannot be read back)
+const token = await api.products.createToken('product-123', { name: 'CI pipeline' })
 ```
+
+### Available API resources
+
+`licenses`, `machines`, `users`, `policies`, `products`, `groups`, `entitlements`,
+`webhooks`, `releases`, `artifacts`, `releaseMetadata`, `tokens`, `eventLogs`,
+`requestLogs`, `passwords`, `search`
 
 ### Component Architecture
 
