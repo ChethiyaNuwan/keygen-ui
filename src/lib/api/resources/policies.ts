@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Policy, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
+import { Policy, PooledKey, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
 
 export class PolicyResource {
   constructor(private client: KeygenClient) {}
@@ -161,6 +161,22 @@ export class PolicyResource {
     await this.client.request(`/policies/${policyId}/entitlements`, {
       method: 'DELETE',
       body,
+    });
+  }
+
+  /**
+   * Pooled keys for this policy (only meaningful when the policy uses a pool).
+   */
+  async listPool(policyId: string): Promise<KeygenListResponse<PooledKey>> {
+    return this.client.request<PooledKey[]>(`policies/${policyId}/pool`);
+  }
+
+  /**
+   * Pop the next key off the pool, removing it.
+   */
+  async popFromPool(policyId: string): Promise<KeygenResponse<PooledKey>> {
+    return this.client.request<PooledKey>(`policies/${policyId}/pool`, {
+      method: 'DELETE',
     });
   }
 }
