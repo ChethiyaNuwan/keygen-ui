@@ -193,13 +193,19 @@ export function CreateWebhookDialog({
                         </div>
                         <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-2">
                           {events.map(event => (
-                            <div key={event} className="flex items-center space-x-2">
+                            <div key={event} className="flex items-start space-x-2">
                               <Checkbox
                                 id={event}
+                                className="mt-0.5 shrink-0"
                                 checked={formData.subscriptions.includes(event)}
                                 onCheckedChange={(checked) => handleEventToggle(event, checked as boolean)}
                               />
-                              <Label htmlFor={event} className="text-sm font-mono">
+                              {/* Event names are long unbroken tokens; let them wrap
+                                  instead of overflowing the column. */}
+                              <Label
+                                htmlFor={event}
+                                className="min-w-0 text-sm font-mono leading-snug break-all"
+                              >
                                 {event}
                               </Label>
                             </div>
