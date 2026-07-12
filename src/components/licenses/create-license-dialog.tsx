@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -548,14 +549,14 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading ? 'Creating…' : 'Create License'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         )}
       </DialogContent>
