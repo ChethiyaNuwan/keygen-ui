@@ -113,10 +113,6 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     })
   }
 
-  const getRoleIcon = (role: string) => {
-    return role === 'admin' ? <Shield className="h-4 w-4" /> : <User className="h-4 w-4" />
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -152,7 +148,8 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
                 onValueChange={(value: typeof formData.role) => setFormData({ ...formData, role: value })}
               >
                 <SelectTrigger>
-                  {getRoleIcon(formData.role)}
+                  {/* SelectValue mirrors the chosen item, icon included — do not
+                      render the icon here as well. */}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
