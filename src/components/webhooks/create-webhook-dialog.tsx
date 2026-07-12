@@ -112,7 +112,8 @@ export function CreateWebhookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* Height/scroll come from DialogContent itself, so the footer stays pinned. */}
+      <DialogContent className="max-w-4xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Webhook</DialogTitle>

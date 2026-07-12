@@ -188,7 +188,7 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
           Create Policy
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Create New Policy</DialogTitle>
           <DialogDescription>
