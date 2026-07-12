@@ -186,9 +186,9 @@ export function ReleaseManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Releases</CardTitle>
             <Rocket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -198,7 +198,7 @@ export function ReleaseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Published</CardTitle>
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -210,7 +210,7 @@ export function ReleaseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Drafts</CardTitle>
             <Upload className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -222,7 +222,7 @@ export function ReleaseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Yanked</CardTitle>
             <Ban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -236,8 +236,8 @@ export function ReleaseManagement() {
       </div>
 
       {/* Filters and Search */}
-      <div className="flex items-center space-x-4">
-        <div className="flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="basis-full sm:basis-auto flex-1 sm:max-w-sm">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -249,7 +249,7 @@ export function ReleaseManagement() {
           </div>
         </div>
         <Select value={productFilter} onValueChange={setProductFilter}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="min-w-0 flex-1 sm:w-[200px] sm:flex-none">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter by product" />
           </SelectTrigger>
@@ -263,7 +263,7 @@ export function ReleaseManagement() {
           </SelectContent>
         </Select>
         <Select value={channelFilter} onValueChange={setChannelFilter}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="min-w-0 flex-1 sm:w-[160px] sm:flex-none">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Channel" />
           </SelectTrigger>

@@ -141,9 +141,14 @@ export function WebhookManagement() {
             Configure webhook endpoints to receive real-time event notifications
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          className="gap-2 max-sm:size-9 max-sm:px-0"
+          aria-label="Create Webhook"
+        >
           <Plus className="h-4 w-4" />
-          Create Webhook
+          <span className="max-sm:hidden">Create Webhook</span>
         </Button>
       </div>
 

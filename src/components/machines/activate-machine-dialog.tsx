@@ -119,9 +119,10 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Activate Machine
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button className="max-sm:size-9 max-sm:px-0" aria-label="Activate Machine">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="max-sm:hidden">Activate Machine</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px]">

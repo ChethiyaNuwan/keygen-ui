@@ -102,9 +102,14 @@ export function GroupManagement() {
             Organize users and licenses into groups for easier management
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          className="gap-2 max-sm:size-9 max-sm:px-0"
+          aria-label="Create Group"
+        >
           <Plus className="h-4 w-4" />
-          Create Group
+          <span className="max-sm:hidden">Create Group</span>
         </Button>
       </div>
 
