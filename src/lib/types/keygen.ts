@@ -249,6 +249,33 @@ export interface WebhookEventRecord extends KeygenResource {
   };
 }
 
+// Release metadata — Keygen derives these from uploaded artifacts.
+export interface ReleasePlatform extends KeygenResource {
+  type: 'platforms';
+  attributes: { key: string; created: string; updated: string };
+}
+
+export interface ReleaseArch extends KeygenResource {
+  type: 'arches';
+  attributes: { key: string; created: string; updated: string };
+}
+
+export interface ReleaseChannelRecord extends KeygenResource {
+  type: 'channels';
+  attributes: { key: string; name?: string; created: string; updated: string };
+}
+
+export interface ReleaseEngine extends KeygenResource {
+  type: 'engines';
+  attributes: { key: string; name?: string; created: string; updated: string };
+}
+
+// A pooled licence key (policies with usePool draw from these).
+export interface PooledKey extends KeygenResource {
+  type: 'keys';
+  attributes: { key: string; created: string; updated: string };
+}
+
 // Token
 export interface Token extends KeygenResource {
   type: 'tokens';
