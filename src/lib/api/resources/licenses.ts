@@ -101,7 +101,7 @@ export class LicenseResource {
       })),
     };
 
-    return this.client.request(`licenses/${id}/relationships/users`, {
+    return this.client.request(`licenses/${id}/users`, {
       method: 'POST',
       body,
     });
@@ -118,7 +118,7 @@ export class LicenseResource {
       })),
     };
 
-    await this.client.request(`licenses/${id}/relationships/users`, {
+    await this.client.request(`licenses/${id}/users`, {
       method: 'DELETE',
       body,
     });
@@ -243,7 +243,7 @@ export class LicenseResource {
       })),
     };
 
-    return this.client.request(`licenses/${id}/relationships/entitlements`, {
+    return this.client.request(`licenses/${id}/entitlements`, {
       method: 'POST',
       body,
     });
@@ -260,7 +260,7 @@ export class LicenseResource {
       })),
     };
 
-    await this.client.request(`licenses/${id}/relationships/entitlements`, {
+    await this.client.request(`licenses/${id}/entitlements`, {
       method: 'DELETE',
       body,
     });
@@ -295,7 +295,7 @@ export class LicenseResource {
       data: { type: 'users', id: userId },
     };
 
-    return this.client.request<License>(`licenses/${id}/user`, {
+    return this.client.request<License>(`licenses/${id}/owner`, {
       method: 'PUT',
       body,
     });
