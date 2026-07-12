@@ -1,15 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { getKeygenApi } from '@/lib/api'
-import { Entitlement, License } from '@/lib/types/keygen'
+import { Entitlement } from '@/lib/types/keygen'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Shield, KeyRound, Calendar, Info, Code } from 'lucide-react'
 // toast not needed; using centralized error handlers
-import { handleLoadError } from '@/lib/utils/error-handling'
 
 interface EntitlementDetailsDialogProps {
   entitlement: Entitlement
@@ -22,32 +18,6 @@ export function EntitlementDetailsDialog({
   open,
   onOpenChange
 }: EntitlementDetailsDialogProps) {
-  const [licenses, setLicenses] = useState<License[]>([])
-  const [loadingLicenses, setLoadingLicenses] = useState(false)
-  
-  const api = getKeygenApi()
-
-  const loadEntitlementDetails = useCallback(async () => {
-    if (!entitlement.id) return
-
-    // Load associated licenses
-    setLoadingLicenses(true)
-    try {
-      const licensesResponse = await api.entitlements.getLicenses(entitlement.id, { limit: 10 })
-      setLicenses((licensesResponse.data as License[]) || [])
-    } catch (error: unknown) {
-      handleLoadError(error, 'entitlement licenses')
-    } finally {
-      setLoadingLicenses(false)
-    }
-  }, [api.entitlements, entitlement.id])
-
-  useEffect(() => {
-    if (open && entitlement.id) {
-      loadEntitlementDetails()
-    }
-  }, [open, entitlement.id, loadEntitlementDetails])
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -121,71 +91,27 @@ export function EntitlementDetailsDialog({
             </CardContent>
           </Card>
 
-          {/* Associated Licenses */}
+          {/* Where this entitlement is used.
+
+              Keygen has no endpoint for "which licences carry this entitlement"
+              — /entitlements is a flat resource and /licenses has no entitlement
+              filter — so this explains the relationship rather than faking a list. */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4" />
-                Associated Licenses ({licenses.length})
+                Where it applies
               </CardTitle>
               <CardDescription>
-                Licenses that have this entitlement enabled (showing first 10)
+                Entitlements are attached to licences and policies, not the other way round
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingLicenses ? (
-                <div className="space-y-2">
-                  {[...Array(3)].map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-full" />
-                  ))}
-                </div>
-              ) : licenses.length > 0 ? (
-                <div className="space-y-2">
-                  {licenses.map((license) => (
-                    <div key={license.id} className="flex items-center justify-between p-3 border rounded">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">
-                          {license.attributes.name || 'Unnamed License'}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {license.attributes.key}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={license.attributes.status === 'active' ? 'default' : 'secondary'}>
-                            {license.attributes.status}
-                          </Badge>
-                          {license.attributes.uses !== undefined && (
-                            <Badge variant="outline">
-                              Uses: {license.attributes.uses}
-                              {license.attributes.maxUses ? `/${license.attributes.maxUses}` : ''}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">
-                          Created: {new Date(license.attributes.created).toLocaleDateString()}
-                        </p>
-                        {license.attributes.expiry && (
-                          <p className="text-xs text-muted-foreground">
-                            Expires: {new Date(license.attributes.expiry).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground">
-                    No licenses are currently using this entitlement
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Licenses with this entitlement will appear here
-                  </p>
-                </div>
-              )}
+              <p className="text-muted-foreground text-sm">
+                Attach this entitlement to a <strong>policy</strong> to grant it to every
+                licence under that policy, or to an individual <strong>licence</strong> for
+                a one-off. Do that from the policy or licence itself.
+              </p>
             </CardContent>
           </Card>
 
