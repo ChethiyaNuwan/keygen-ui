@@ -90,47 +90,13 @@ export class EntitlementResource {
   }
 
   /**
-   * Get entitlement licenses
+   * NOTE: entitlements are attached from the other side — Keygen mounts
+   * /entitlements as a flat resource with no sub-routes:
+   *
+   *   licenses.attachEntitlements(licenseId, [entitlementId])
+   *   policies.attachEntitlements(policyId, [entitlementId])
+   *
+   * There is likewise no way to list the licences carrying an entitlement:
+   * /licenses has no entitlement filter.
    */
-  async getLicenses(id: string, options: ListOptions = {}): Promise<KeygenResponse<unknown[]>> {
-    const params: Record<string, unknown> = {};
-    if (options.limit) params.limit = options.limit;
-    if (options.page) params.page = options.page;
-
-    return this.client.request(`entitlements/${id}/licenses`, { params });
-  }
-
-  /**
-   * Attach entitlement to licenses
-   */
-  async attachToLicenses(id: string, licenseIds: string[]): Promise<KeygenResponse<unknown>> {
-    const body = {
-      data: licenseIds.map(licenseId => ({
-        type: 'licenses',
-        id: licenseId,
-      })),
-    };
-
-    return this.client.request(`entitlements/${id}/relationships/licenses`, {
-      method: 'POST',
-      body,
-    });
-  }
-
-  /**
-   * Detach entitlement from licenses
-   */
-  async detachFromLicenses(id: string, licenseIds: string[]): Promise<void> {
-    const body = {
-      data: licenseIds.map(licenseId => ({
-        type: 'licenses',
-        id: licenseId,
-      })),
-    };
-
-    await this.client.request(`entitlements/${id}/relationships/licenses`, {
-      method: 'DELETE',
-      body,
-    });
-  }
 }
