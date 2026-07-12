@@ -209,6 +209,31 @@ export interface Entitlement extends KeygenResource {
   };
 }
 
+// Result of validating a licence: `valid` plus a machine-readable code
+// (EXPIRED, SUSPENDED, NO_MACHINE, TOO_MANY_MACHINES, …) and a readable detail.
+export interface LicenseValidation extends KeygenResponse<License> {
+  meta?: {
+    ts?: string;
+    valid: boolean;
+    detail: string;
+    code: string;
+    scope?: Record<string, unknown>;
+  };
+}
+
+// A signed licence file: the client verifies `certificate` offline.
+export interface LicenseFile extends KeygenResource {
+  type: 'license-files';
+  attributes: {
+    certificate: string;
+    algorithm: string;
+    /** Seconds the file stays valid without contacting the server. */
+    ttl: number | null;
+    issued: string;
+    expiry: string | null;
+  };
+}
+
 // Token
 export interface Token extends KeygenResource {
   type: 'tokens';
