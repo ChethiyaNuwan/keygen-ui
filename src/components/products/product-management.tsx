@@ -41,12 +41,14 @@ import {
   Edit,
   Trash2,
   ExternalLink,
+  KeyRound,
 } from 'lucide-react'
 // No direct toasts here; using centralized error handlers where needed
 import { handleLoadError } from '@/lib/utils/error-handling'
 import { CreateProductDialog } from './create-product-dialog'
 import { EditProductDialog } from './edit-product-dialog'
 import { DeleteProductDialog } from './delete-product-dialog'
+import { ProductTokensDialog } from './product-tokens-dialog'
 
 export function ProductManagement() {
   const [products, setProducts] = useState<Product[]>([])
@@ -57,6 +59,8 @@ export function ProductManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [tokensProduct, setTokensProduct] = useState<Product | null>(null)
+  const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const api = getKeygenApi()
 
   const loadProducts = useCallback(async () => {
@@ -129,6 +133,11 @@ export function ProductManagement() {
     }
   }
 
+  const handleTokens = (product: Product) => {
+    setTokensProduct(product)
+    setTokensDialogOpen(true)
+  }
+
   const handleEditProduct = (product: Product) => {
     setEditProduct(product)
     setEditDialogOpen(true)
@@ -148,9 +157,9 @@ export function ProductManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -162,7 +171,7 @@ export function ProductManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Licensed</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -176,7 +185,7 @@ export function ProductManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open</CardTitle>
             <Unlock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -190,7 +199,7 @@ export function ProductManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Closed</CardTitle>
             <Lock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -206,8 +215,8 @@ export function ProductManagement() {
       </div>
 
       {/* Filters and Search */}
-      <div className="flex items-center space-x-4">
-        <div className="flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="basis-full sm:basis-auto flex-1 sm:max-w-sm">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -219,7 +228,7 @@ export function ProductManagement() {
           </div>
         </div>
         <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="min-w-0 flex-1 sm:w-[180px] sm:flex-none">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter by strategy" />
           </SelectTrigger>
@@ -332,6 +341,10 @@ export function ProductManagement() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit Product
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTokens(product)}>
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Tokens
+                          </DropdownMenuItem>
                           {product.attributes.url && (
                             <DropdownMenuItem onClick={() => openUrl(product.attributes.url!)}>
                               <ExternalLink className="mr-2 h-4 w-4" />
@@ -381,6 +394,12 @@ export function ProductManagement() {
       />
 
       {/* Delete Product Dialog */}
+      <ProductTokensDialog
+        product={tokensProduct}
+        open={tokensDialogOpen}
+        onOpenChange={setTokensDialogOpen}
+      />
+
       <DeleteProductDialog
         product={deleteProduct}
         open={deleteDialogOpen}

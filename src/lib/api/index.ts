@@ -12,6 +12,8 @@ import { EventLogResource } from './resources/event-logs';
 import { PasswordResource } from './resources/passwords';
 import { SearchResource } from './resources/search';
 import { ReleaseResource } from './resources/releases';
+import { TokenResource } from './resources/tokens';
+import { ReleaseMetadataResource } from './resources/release-metadata';
 import { ArtifactResource } from './resources/artifacts';
 
 export class KeygenApi {
@@ -28,6 +30,8 @@ export class KeygenApi {
   public passwords: PasswordResource;
   public search: SearchResource;
   public releases: ReleaseResource;
+  public tokens: TokenResource;
+  public releaseMetadata: ReleaseMetadataResource;
   public artifacts: ArtifactResource;
 
   constructor(private client: KeygenClient) {
@@ -44,6 +48,8 @@ export class KeygenApi {
     this.passwords = new PasswordResource(client);
     this.search = new SearchResource(client);
     this.releases = new ReleaseResource(client);
+    this.tokens = new TokenResource(client);
+    this.releaseMetadata = new ReleaseMetadataResource(client);
     this.artifacts = new ArtifactResource(client);
   }
 
@@ -110,4 +116,6 @@ export { EventLogResource } from './resources/event-logs';
 export { PasswordResource } from './resources/passwords';
 export { SearchResource } from './resources/search';
 export { ReleaseResource } from './resources/releases';
+export { TokenResource } from './resources/tokens';
+export { ReleaseMetadataResource } from './resources/release-metadata';
 export { ArtifactResource } from './resources/artifacts';

@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { License, LicenseFilters, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import { License, LicenseFilters, LicenseFile, LicenseValidation, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
 
 export class LicenseResource {
   constructor(private client: KeygenClient) {}
@@ -312,6 +312,96 @@ export class LicenseResource {
     return this.client.request<License>(`licenses/${id}/group`, {
       method: 'PUT',
       body,
+    });
+  }
+
+  /**
+   * Validate a licence by ID. Reports whether it is usable and, if not, why
+   * (expired, suspended, no machines, over its machine limit, …) — the first
+   * thing to reach for when a customer says "it stopped working".
+   */
+  async validate(id: string, scope?: {
+    fingerprint?: string;
+    product?: string;
+    policy?: string;
+    machine?: string;
+    version?: string;
+  }): Promise<LicenseValidation> {
+    const body = scope ? { meta: { scope } } : undefined;
+
+    return this.client.request<License>(`licenses/${id}/actions/validate`, {
+      method: 'POST',
+      body,
+    }) as Promise<LicenseValidation>;
+  }
+
+  /**
+   * Validate by licence key, without knowing the licence's ID — this is what a
+   * client app does at activation time.
+   */
+  async validateKey(key: string, scope?: {
+    fingerprint?: string;
+    product?: string;
+  }): Promise<LicenseValidation> {
+    return this.client.request<License>('licenses/actions/validate-key', {
+      method: 'POST',
+      body: {
+        meta: {
+          key,
+          ...(scope ? { scope } : {}),
+        },
+      },
+    }) as Promise<LicenseValidation>;
+  }
+
+  /**
+   * Check out a licence file: a signed snapshot the client verifies offline.
+   * `ttl` (seconds) is how long it stays valid without contacting the server —
+   * i.e. the offline grace window.
+   */
+  async checkOut(id: string, options: {
+    ttl?: number;
+    include?: string[];
+    encrypt?: boolean;
+  } = {}): Promise<KeygenResponse<LicenseFile>> {
+    const params = new URLSearchParams();
+    if (options.ttl) params.set('ttl', options.ttl.toString());
+    if (options.encrypt) params.set('encrypt', '1');
+    if (options.include?.length) params.set('include', options.include.join(','));
+
+    const query = params.toString();
+    const endpoint = `licenses/${id}/actions/check-out${query ? `?${query}` : ''}`;
+
+    return this.client.request<LicenseFile>(endpoint, { method: 'POST' });
+  }
+
+  /**
+   * Check in a licence, resetting its check-in clock (for policies that require
+   * periodic check-ins).
+   */
+  async checkIn(id: string): Promise<KeygenResponse<License>> {
+    return this.client.request<License>(`licenses/${id}/actions/check-in`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Increment usage (for usage-based policies).
+   */
+  async incrementUsage(id: string, increment = 1): Promise<KeygenResponse<License>> {
+    return this.client.request<License>(`licenses/${id}/actions/increment-usage`, {
+      method: 'POST',
+      body: { meta: { increment } },
+    });
+  }
+
+  /**
+   * Revoke a licence permanently. Unlike suspend, this cannot be undone —
+   * suspend is what you want for a customer who has merely stopped paying.
+   */
+  async revoke(id: string): Promise<void> {
+    await this.client.request<void>(`licenses/${id}/actions/revoke`, {
+      method: 'DELETE',
     });
   }
 }

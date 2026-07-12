@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Webhook, WebhookFilters, KeygenResponse, KeygenListResponse } from '../../types/keygen';
+import { Webhook, WebhookFilters, WebhookEventRecord, KeygenResponse, KeygenListResponse } from '../../types/keygen';
 
 // Common webhook events in Keygen
 export const WEBHOOK_EVENTS = [
@@ -200,5 +200,37 @@ export class WebhookResource {
     });
 
     return categories;
+  }
+
+  /**
+   * List delivery attempts across all endpoints.
+   */
+  async listEvents(options: {
+    limit?: number;
+    page?: number;
+  } = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
+    const params: Record<string, unknown> = {};
+    if (options.limit) params.limit = options.limit;
+    if (options.page) params.page = options.page;
+
+    return this.client.request<WebhookEventRecord[]>('webhook-events', { params });
+  }
+
+  async getEvent(id: string): Promise<KeygenResponse<WebhookEventRecord>> {
+    return this.client.request<WebhookEventRecord>(`webhook-events/${id}`);
+  }
+
+  /**
+   * Re-send a delivery that failed — the usual fix when a customer's endpoint
+   * was briefly down.
+   */
+  async retryEvent(id: string): Promise<KeygenResponse<WebhookEventRecord>> {
+    return this.client.request<WebhookEventRecord>(`webhook-events/${id}/actions/retry`, {
+      method: 'POST',
+    });
+  }
+
+  async deleteEvent(id: string): Promise<void> {
+    await this.client.request<void>(`webhook-events/${id}`, { method: 'DELETE' });
   }
 }

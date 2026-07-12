@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Webhook } from '@/lib/types/keygen'
+import { Webhook, WebhookEventRecord } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -23,8 +23,9 @@ export function WebhookDetailsDialog({
   open,
   onOpenChange
 }: WebhookDetailsDialogProps) {
-  const [deliveries, setDeliveries] = useState<Array<{ id: string; attributes?: { event?: string; created?: string; successful?: boolean } }>>([])
+  const [deliveries, setDeliveries] = useState<WebhookEventRecord[]>([])
   const [loadingDeliveries, setLoadingDeliveries] = useState(false)
+  const [retrying, setRetrying] = useState<string | null>(null)
   
   const api = getKeygenApi()
 
@@ -34,7 +35,7 @@ export function WebhookDetailsDialog({
     setLoadingDeliveries(true)
     try {
       const deliveriesResponse = await api.webhooks.getDeliveries(webhook.id, { limit: 10 })
-      setDeliveries((deliveriesResponse.data || []) as Array<{ id: string; attributes?: { event?: string; created?: string; successful?: boolean } }>)
+      setDeliveries((deliveriesResponse.data || []) as WebhookEventRecord[])
     } catch (error: unknown) {
       handleLoadError(error, 'webhook deliveries', { silent: true })
     } finally {
@@ -47,6 +48,21 @@ export function WebhookDetailsDialog({
       loadWebhookDeliveries()
     }
   }, [open, webhook.id, loadWebhookDeliveries])
+
+  const handleRetryDelivery = async (id: string) => {
+    try {
+      setRetrying(id)
+      await api.webhooks.retryEvent(id)
+      toast.success('Delivery re-sent')
+      loadWebhookDeliveries()
+    } catch (error: unknown) {
+      handleCrudError(error, 'update', 'Webhook delivery', {
+        customMessage: 'Failed to retry the delivery',
+      })
+    } finally {
+      setRetrying(null)
+    }
+  }
 
   const handleTestWebhook = async () => {
     try {
@@ -97,7 +113,7 @@ export function WebhookDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <WebhookIcon className="h-5 w-5" />
@@ -251,21 +267,41 @@ export function WebhookDetailsDialog({
                 </div>
               ) : deliveries.length > 0 ? (
                 <div className="space-y-2">
-                  {deliveries.map((delivery, index) => (
-                    <div key={delivery.id || index} className="flex items-center justify-between p-2 border rounded">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">
-                          {delivery.attributes?.event || 'Unknown Event'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {delivery.attributes?.created ? formatDate(delivery.attributes.created) : 'Unknown time'}
-                        </p>
+                  {deliveries.map((delivery, index) => {
+                    const status = delivery.attributes?.status
+                    const failed = status === 'FAILED' || status === 'FAILING'
+                    const code = delivery.attributes?.lastResponseCode
+
+                    return (
+                      <div key={delivery.id || index} className="flex items-center justify-between gap-2 p-2 border rounded">
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate text-sm font-medium">
+                            {delivery.attributes?.event || 'Unknown Event'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {delivery.attributes?.created ? formatDate(delivery.attributes.created) : 'Unknown time'}
+                            {code ? ` · HTTP ${code}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge variant={failed ? 'destructive' : 'default'}>
+                            {status ? status.toLowerCase() : 'unknown'}
+                          </Badge>
+                          {/* Re-send: the usual fix when the endpoint was briefly down. */}
+                          {failed && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={retrying === delivery.id}
+                              onClick={() => handleRetryDelivery(delivery.id)}
+                            >
+                              {retrying === delivery.id ? 'Retrying…' : 'Retry'}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <Badge variant={delivery.attributes?.successful ? 'default' : 'destructive'}>
-                        {delivery.attributes?.successful ? 'Success' : 'Failed'}
-                      </Badge>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-8">

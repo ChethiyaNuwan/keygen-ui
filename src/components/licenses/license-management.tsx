@@ -51,6 +51,7 @@ import {
   ChevronsRight,
   X,
   Loader2,
+  BadgeCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
@@ -212,6 +213,28 @@ export function LicenseManagement() {
     })
   }
 
+  /**
+   * Asks the server whether the licence is usable right now, and shows why not
+   * if it isn't (EXPIRED, SUSPENDED, TOO_MANY_MACHINES, …). The status column
+   * alone does not explain, say, an active licence that has used up its seats.
+   */
+  const handleValidateLicense = async (license: License) => {
+    try {
+      const result = await api.licenses.validate(license.id)
+      const meta = result.meta
+
+      if (meta?.valid) {
+        toast.success(`Valid — ${meta.detail}`)
+      } else {
+        toast.warning(`Not valid — ${meta?.detail ?? 'unknown reason'}`, {
+          description: meta?.code,
+        })
+      }
+    } catch (error: unknown) {
+      handleCrudError(error, 'update', 'License', { customMessage: 'Failed to validate license' })
+    }
+  }
+
   const handleSuspendLicense = async (license: License) => {
     try {
       await api.licenses.suspend(license.id)
@@ -318,9 +341,9 @@ export function LicenseManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Licenses</CardTitle>
             <Key className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -332,7 +355,7 @@ export function LicenseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -342,7 +365,7 @@ export function LicenseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Expired</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -352,7 +375,7 @@ export function LicenseManagement() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Usage</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -364,8 +387,8 @@ export function LicenseManagement() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative basis-full sm:basis-auto flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             ref={searchInputRef}
@@ -396,7 +419,7 @@ export function LicenseManagement() {
           )}
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="min-w-0 flex-1 sm:w-[150px] sm:flex-none">
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
@@ -523,6 +546,10 @@ export function LicenseManagement() {
                           <DropdownMenuItem onClick={() => handleEditLicense(license)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit License
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleValidateLicense(license)}>
+                            <BadgeCheck className="mr-2 h-4 w-4" />
+                            Validate
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleGenerateToken(license)}>
                             <Download className="mr-2 h-4 w-4" />

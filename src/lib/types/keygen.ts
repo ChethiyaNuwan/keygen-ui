@@ -209,6 +209,88 @@ export interface Entitlement extends KeygenResource {
   };
 }
 
+// Result of validating a licence: `valid` plus a machine-readable code
+// (EXPIRED, SUSPENDED, NO_MACHINE, TOO_MANY_MACHINES, …) and a readable detail.
+export interface LicenseValidation extends KeygenResponse<License> {
+  meta?: {
+    ts?: string;
+    valid: boolean;
+    detail: string;
+    code: string;
+    scope?: Record<string, unknown>;
+  };
+}
+
+// A signed licence file: the client verifies `certificate` offline.
+export interface LicenseFile extends KeygenResource {
+  type: 'license-files';
+  attributes: {
+    certificate: string;
+    algorithm: string;
+    /** Seconds the file stays valid without contacting the server. */
+    ttl: number | null;
+    issued: string;
+    expiry: string | null;
+  };
+}
+
+// A single webhook delivery attempt.
+export interface WebhookEventRecord extends KeygenResource {
+  type: 'webhook-events';
+  attributes: {
+    endpoint: string;
+    event: string;
+    payload?: string;
+    status: 'DELIVERING' | 'DELIVERED' | 'FAILING' | 'FAILED';
+    lastResponseCode?: number | null;
+    lastResponseBody?: string | null;
+    created: string;
+    updated: string;
+  };
+}
+
+// Release metadata — Keygen derives these from uploaded artifacts.
+export interface ReleasePlatform extends KeygenResource {
+  type: 'platforms';
+  attributes: { key: string; created: string; updated: string };
+}
+
+export interface ReleaseArch extends KeygenResource {
+  type: 'arches';
+  attributes: { key: string; created: string; updated: string };
+}
+
+export interface ReleaseChannelRecord extends KeygenResource {
+  type: 'channels';
+  attributes: { key: string; name?: string; created: string; updated: string };
+}
+
+export interface ReleaseEngine extends KeygenResource {
+  type: 'engines';
+  attributes: { key: string; name?: string; created: string; updated: string };
+}
+
+// A pooled licence key (policies with usePool draw from these).
+export interface PooledKey extends KeygenResource {
+  type: 'keys';
+  attributes: { key: string; created: string; updated: string };
+}
+
+// Token
+export interface Token extends KeygenResource {
+  type: 'tokens';
+  attributes: {
+    kind: string;
+    /** Only returned when the token is first created — it cannot be read back. */
+    token?: string;
+    name?: string;
+    expiry?: string | null;
+    permissions?: string[];
+    created: string;
+    updated: string;
+  };
+}
+
 // Release
 export type ReleaseChannel = 'stable' | 'rc' | 'beta' | 'alpha' | 'dev';
 export type ReleaseStatus = 'DRAFT' | 'PUBLISHED' | 'YANKED';
