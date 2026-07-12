@@ -61,8 +61,9 @@ export function DeleteReleaseDialog({ release, open, onOpenChange, onReleaseDele
             <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
               {release?.attributes.version}
             </code>{' '}
-            and all of its artifacts. Terminals will no longer be able to download this
-            version. If you only want to revoke access, yank the release instead.
+            and all of its artifacts. Licensed clients will no longer be able to
+            download this version. If you only want to revoke access, yank the
+            release instead.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

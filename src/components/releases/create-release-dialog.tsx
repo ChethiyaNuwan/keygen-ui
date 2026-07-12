@@ -160,7 +160,7 @@ export function CreateReleaseDialog({ products, onReleaseCreated }: CreateReleas
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
-                placeholder="e.g. Crystal POS 1.0.0"
+                placeholder="e.g. My App 1.0.0"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
