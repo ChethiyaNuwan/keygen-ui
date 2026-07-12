@@ -127,27 +127,23 @@ export class GroupResource {
    * Add user to group
    */
   async addUser(id: string, userId: string): Promise<KeygenResponse<unknown>> {
-    const body = {
-      data: { type: 'users', id: userId },
-    };
-
-    return this.client.request(`groups/${id}/relationships/users`, {
-      method: 'POST',
-      body,
+    // Group membership is written on the member, not the group: Keygen exposes
+    // no attach endpoint under /groups/:id/users (only index/show).
+    return this.client.request(`users/${userId}/group`, {
+      method: 'PUT',
+      body: { data: { type: 'groups', id } },
     });
   }
 
   /**
    * Remove user from group
    */
-  async removeUser(id: string, userId: string): Promise<void> {
-    const body = {
-      data: { type: 'users', id: userId },
-    };
-
-    await this.client.request(`groups/${id}/relationships/users`, {
-      method: 'DELETE',
-      body,
+  async removeUser(id: string, userId: string): Promise<KeygenResponse<unknown>> {
+    void id;
+    // Clearing the member's group is how it leaves one.
+    return this.client.request(`users/${userId}/group`, {
+      method: 'PUT',
+      body: { data: null },
     });
   }
 
@@ -155,27 +151,20 @@ export class GroupResource {
    * Add license to group
    */
   async addLicense(id: string, licenseId: string): Promise<KeygenResponse<unknown>> {
-    const body = {
-      data: { type: 'licenses', id: licenseId },
-    };
-
-    return this.client.request(`groups/${id}/relationships/licenses`, {
-      method: 'POST',
-      body,
+    return this.client.request(`licenses/${licenseId}/group`, {
+      method: 'PUT',
+      body: { data: { type: 'groups', id } },
     });
   }
 
   /**
    * Remove license from group
    */
-  async removeLicense(id: string, licenseId: string): Promise<void> {
-    const body = {
-      data: { type: 'licenses', id: licenseId },
-    };
-
-    await this.client.request(`groups/${id}/relationships/licenses`, {
-      method: 'DELETE',
-      body,
+  async removeLicense(id: string, licenseId: string): Promise<KeygenResponse<unknown>> {
+    void id;
+    return this.client.request(`licenses/${licenseId}/group`, {
+      method: 'PUT',
+      body: { data: null },
     });
   }
 }
