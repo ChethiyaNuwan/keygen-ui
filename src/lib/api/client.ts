@@ -187,6 +187,64 @@ export class KeygenClient {
   }
 
   /**
+   * Like request(), but also returns the response headers. Needed for
+   * endpoints that communicate via the Location header (artifact upload /
+   * download presigned URLs) when called with `Prefer: no-redirect`.
+   */
+  async requestWithHeaders<T = unknown>(
+    endpoint: string,
+    options: ApiRequestOptions = {}
+  ): Promise<{ body: KeygenResponse<T>; headers: Record<string, string>; status: number }> {
+    const url = this.buildUrl(endpoint);
+    const { method = 'GET', headers = {}, body } = options;
+
+    const requestHeaders: Record<string, string> = {
+      'Accept': 'application/vnd.api+json',
+      'Content-Type': 'application/vnd.api+json',
+      ...headers,
+    };
+
+    if (this.config.token) {
+      requestHeaders.Authorization = `Bearer ${this.config.token}`;
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+      redirect: 'manual',
+    });
+
+    let data: KeygenResponse<T> = {};
+    try {
+      data = await response.json();
+    } catch {
+      // Some responses (e.g. redirects) have no JSON body
+    }
+
+    // 3xx responses are not errors here — they carry the Location header
+    if (response.status >= 400) {
+      const apiError: KeygenApiError = {
+        message: data?.errors?.[0]?.detail || data?.errors?.[0]?.title || `HTTP ${response.status} Error`,
+        status: response.status,
+        code: data?.errors?.[0]?.code || `HTTP_${response.status}`,
+        title: data?.errors?.[0]?.title || 'API Error',
+        detail: data?.errors?.[0]?.detail || `Request failed with status ${response.status}`,
+        source: data?.errors?.[0]?.source,
+        errors: data?.errors || [],
+      };
+      throw apiError;
+    }
+
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key.toLowerCase()] = value;
+    });
+
+    return { body: data, headers: responseHeaders, status: response.status };
+  }
+
+  /**
    * Build the full URL for an endpoint
    * In the browser, routes through /api/keygen proxy to avoid CORS issues
    * In singleplayer CE mode, omits the accounts/{accountId} path segment

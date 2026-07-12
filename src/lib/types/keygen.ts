@@ -209,6 +209,46 @@ export interface Entitlement extends KeygenResource {
   };
 }
 
+// Release
+export type ReleaseChannel = 'stable' | 'rc' | 'beta' | 'alpha' | 'dev';
+export type ReleaseStatus = 'DRAFT' | 'PUBLISHED' | 'YANKED';
+
+export interface Release extends KeygenResource {
+  type: 'releases';
+  attributes: {
+    name?: string;
+    description?: string;
+    version: string;
+    channel: ReleaseChannel;
+    status: ReleaseStatus;
+    tag?: string;
+    metadata?: Record<string, unknown>;
+    created: string;
+    updated: string;
+    yanked?: string;
+  };
+}
+
+// Release Artifact
+export type ArtifactStatus = 'WAITING' | 'PROCESSING' | 'UPLOADED' | 'FAILED' | 'YANKED';
+
+export interface ReleaseArtifact extends KeygenResource {
+  type: 'artifacts';
+  attributes: {
+    filename: string;
+    filetype?: string | null;
+    filesize?: number | null;
+    platform?: string | null;
+    arch?: string | null;
+    signature?: string | null;
+    checksum?: string | null;
+    status: ArtifactStatus;
+    metadata?: Record<string, unknown>;
+    created: string;
+    updated: string;
+  };
+}
+
 // Process
 export interface Process extends KeygenResource {
   type: 'processes';
@@ -364,4 +404,19 @@ export interface WebhookFilters extends PaginationOptions {
   enabled?: boolean;
   url?: string;
   subscriptions?: string[];
+}
+
+export interface ReleaseFilters extends PaginationOptions {
+  product?: string;
+  channel?: ReleaseChannel;
+  status?: ReleaseStatus;
+}
+
+export interface ArtifactFilters extends PaginationOptions {
+  release?: string;
+  product?: string;
+  platform?: string;
+  arch?: string;
+  filetype?: string;
+  status?: ArtifactStatus;
 }

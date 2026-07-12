@@ -77,6 +77,12 @@ async function proxyRequest(request: NextRequest, path: string[]) {
     'Accept': request.headers.get('accept') || 'application/vnd.api+json',
   }
 
+  // Forward Prefer (e.g. no-redirect / no-download for artifact presigned URLs)
+  const prefer = request.headers.get('prefer')
+  if (prefer) {
+    headers['Prefer'] = prefer
+  }
+
   // Forward auth header — prefer the request header (e.g. Basic auth during login),
   // otherwise fall back to the httpOnly session cookie.
   const authorization = request.headers.get('authorization')
@@ -106,15 +112,25 @@ async function proxyRequest(request: NextRequest, path: string[]) {
       headers,
       body: body || undefined,
       agent: targetUrl.startsWith('https') ? httpsAgent : undefined,
+      // Never follow upstream redirects — artifact endpoints respond with
+      // presigned storage URLs in the Location header (303/307), which the
+      // client must receive and use directly.
+      redirect: 'manual',
     })
 
     const data = await response.text()
 
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': response.headers.get('content-type') || 'application/vnd.api+json',
+    }
+    const location = response.headers.get('location')
+    if (location) {
+      responseHeaders['Location'] = location
+    }
+
     return new NextResponse(data || null, {
       status: response.status,
-      headers: {
-        'Content-Type': response.headers.get('content-type') || 'application/vnd.api+json',
-      },
+      headers: responseHeaders,
     })
   } catch (error) {
     console.error('Proxy error:', error instanceof Error ? error.message : 'Unknown error')
