@@ -189,7 +189,7 @@ export class UserResource {
       data: { type: 'groups', id: groupId },
     };
 
-    return this.client.request<User>(`users/${id}/relationships/group`, {
+    return this.client.request<User>(`users/${id}/group`, {
       method: 'PATCH',
       body,
     });
