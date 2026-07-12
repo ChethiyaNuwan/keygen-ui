@@ -31,10 +31,17 @@ import {
 
 export function NavUser() {
   const { user, logout } = useAuth()
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const router = useRouter()
 
+  // On mobile the sidebar covers the page, so dismiss it once a destination
+  // has been chosen.
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+
   const handleLogout = () => {
+    closeOnMobile()
     logout()
     router.push('/login')
   }
@@ -97,7 +104,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/profile">
+                <Link href="/profile" onClick={closeOnMobile}>
                   <IconUserCircle />
                   Account
                 </Link>

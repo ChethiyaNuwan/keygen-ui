@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 export function NavMain({
@@ -22,6 +23,13 @@ export function NavMain({
   }[]
 }) {
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  // On mobile the sidebar covers the page, so dismiss it once a destination
+  // has been chosen.
+  const closeOnMobile = () => {
+    if (isMobile) setOpenMobile(false)
+  }
 
   return (
     <SidebarGroup>
@@ -37,7 +45,7 @@ export function NavMain({
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton tooltip={item.title} asChild isActive={isActive}>
-                  <Link href={item.url}>
+                  <Link href={item.url} onClick={closeOnMobile}>
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
                   </Link>
