@@ -11,6 +11,8 @@ interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Re-read the signed-in user (e.g. after editing your own profile). */
+  refresh: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     login,
     logout,
+    refresh: checkAuth,
     isAuthenticated: !!user,
   };
 
