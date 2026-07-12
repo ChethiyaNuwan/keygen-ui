@@ -183,12 +183,13 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Policy
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button className="max-sm:size-9 max-sm:px-0" aria-label="Create Policy">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="max-sm:hidden">Create Policy</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Create New Policy</DialogTitle>
           <DialogDescription>

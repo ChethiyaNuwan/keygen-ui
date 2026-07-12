@@ -123,21 +123,13 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
     }
   }
 
-  const getStrategyIcon = (strategy: string) => {
-    switch (strategy) {
-      case 'LICENSED': return <Shield className="h-4 w-4" />
-      case 'OPEN': return <Unlock className="h-4 w-4" />
-      case 'CLOSED': return <Lock className="h-4 w-4" />
-      default: return <Shield className="h-4 w-4" />
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Product
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button className="max-sm:size-9 max-sm:px-0" aria-label="Create Product">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="max-sm:hidden">Create Product</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px]">
@@ -180,7 +172,8 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
                 onValueChange={(value: 'LICENSED' | 'OPEN' | 'CLOSED') => setFormData({ ...formData, distributionStrategy: value })}
               >
                 <SelectTrigger>
-                  {getStrategyIcon(formData.distributionStrategy)}
+                  {/* SelectValue mirrors the chosen item, icon included — do not
+                      render the icon here as well. */}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

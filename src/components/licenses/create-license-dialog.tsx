@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -169,9 +170,10 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Create License
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button className="max-sm:size-9 max-sm:px-0" aria-label="Create License">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="max-sm:hidden">Create License</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[720px]">
@@ -548,14 +550,14 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading ? 'Creating…' : 'Create License'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         )}
       </DialogContent>

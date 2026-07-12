@@ -10,7 +10,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
@@ -112,7 +111,8 @@ export function CreateWebhookDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* Height/scroll come from DialogContent itself, so the footer stays pinned. */}
+      <DialogContent className="max-w-4xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create Webhook</DialogTitle>
@@ -165,8 +165,9 @@ export function CreateWebhookDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-96">
-                  <div className="space-y-4">
+                {/* No inner scroller: the dialog body scrolls, and nesting a
+                    second one made the list fight the dialog for the wheel. */}
+                <div className="space-y-4">
                     {Object.entries(eventGroups).map(([resource, events]) => (
                       <div key={resource} className="space-y-2">
                         <div className="flex items-center space-x-2">
@@ -192,13 +193,19 @@ export function CreateWebhookDialog({
                         </div>
                         <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-2">
                           {events.map(event => (
-                            <div key={event} className="flex items-center space-x-2">
+                            <div key={event} className="flex items-start space-x-2">
                               <Checkbox
                                 id={event}
+                                className="mt-0.5 shrink-0"
                                 checked={formData.subscriptions.includes(event)}
                                 onCheckedChange={(checked) => handleEventToggle(event, checked as boolean)}
                               />
-                              <Label htmlFor={event} className="text-sm font-mono">
+                              {/* Event names are long unbroken tokens; let them wrap
+                                  instead of overflowing the column. */}
+                              <Label
+                                htmlFor={event}
+                                className="min-w-0 text-sm font-mono leading-snug break-all"
+                              >
                                 {event}
                               </Label>
                             </div>
@@ -209,8 +216,7 @@ export function CreateWebhookDialog({
                         )}
                       </div>
                     ))}
-                  </div>
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
           </div>

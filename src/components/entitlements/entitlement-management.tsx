@@ -103,9 +103,14 @@ export function EntitlementManagement() {
             Manage feature entitlements and permissions for your products
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+        {/* Icon-only on phones: the label pushes the header out of shape. */}
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          className="gap-2 max-sm:size-9 max-sm:px-0"
+          aria-label="Create Entitlement"
+        >
           <Plus className="h-4 w-4" />
-          Create Entitlement
+          <span className="max-sm:hidden">Create Entitlement</span>
         </Button>
       </div>
 
