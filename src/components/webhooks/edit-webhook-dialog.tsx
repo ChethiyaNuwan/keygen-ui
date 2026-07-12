@@ -11,7 +11,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { handleCrudError } from '@/lib/utils/error-handling'
@@ -174,8 +173,9 @@ export function EditWebhookDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-96">
-                  <div className="space-y-4">
+                {/* No inner scroller: the dialog body scrolls, and nesting a
+                    second one made the list fight the dialog for the wheel. */}
+                <div className="space-y-4">
                     {Object.entries(eventGroups).map(([resource, events]) => (
                       <div key={resource} className="space-y-2">
                         <div className="flex items-center space-x-2">
@@ -218,8 +218,7 @@ export function EditWebhookDialog({
                         )}
                       </div>
                     ))}
-                  </div>
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
           </div>
