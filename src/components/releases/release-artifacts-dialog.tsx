@@ -40,8 +40,10 @@ interface ReleaseArtifactsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const PLATFORMS = ['windows', 'darwin', 'linux'] as const
-const ARCHES = ['x86_64', 'amd64', 'arm64', '386'] as const
+// Fallbacks only: the real lists come from the server (Keygen derives them from
+// the artifacts already uploaded), so the dropdowns match what you actually ship.
+const FALLBACK_PLATFORMS = ['windows', 'darwin', 'linux']
+const FALLBACK_ARCHES = ['x86_64', 'amd64', 'arm64', '386']
 
 export function ReleaseArtifactsDialog({ release, open, onOpenChange }: ReleaseArtifactsDialogProps) {
   const [artifacts, setArtifacts] = useState<ReleaseArtifact[]>([])
@@ -52,6 +54,8 @@ export function ReleaseArtifactsDialog({ release, open, onOpenChange }: ReleaseA
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
+  const [platforms, setPlatforms] = useState<string[]>(FALLBACK_PLATFORMS)
+  const [arches, setArches] = useState<string[]>(FALLBACK_ARCHES)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const api = getKeygenApi()
@@ -74,6 +78,29 @@ export function ReleaseArtifactsDialog({ release, open, onOpenChange }: ReleaseA
       loadArtifacts()
     }
   }, [open, release, loadArtifacts])
+
+  // Known platforms/arches, so the dropdowns reflect what has really been
+  // published rather than a hardcoded guess. Falls back if the call fails.
+  useEffect(() => {
+    if (!open) return
+
+    ;(async () => {
+      try {
+        const [platformsResponse, archesResponse] = await Promise.all([
+          api.releaseMetadata.platforms(),
+          api.releaseMetadata.arches(),
+        ])
+
+        const platformKeys = (platformsResponse.data || []).map(p => p.attributes.key)
+        const archKeys = (archesResponse.data || []).map(a => a.attributes.key)
+
+        if (platformKeys.length) setPlatforms(platformKeys)
+        if (archKeys.length) setArches(archKeys)
+      } catch {
+        // Keep the fallbacks — this is a convenience, not a requirement.
+      }
+    })()
+  }, [open, api.releaseMetadata])
 
   // Clear poll timers when the dialog closes or unmounts
   useEffect(() => {
@@ -287,7 +314,7 @@ export function ReleaseArtifactsDialog({ release, open, onOpenChange }: ReleaseA
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Not set</SelectItem>
-                  {PLATFORMS.map(p => (
+                  {platforms.map(p => (
                     <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
                 </SelectContent>
@@ -301,7 +328,7 @@ export function ReleaseArtifactsDialog({ release, open, onOpenChange }: ReleaseA
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Not set</SelectItem>
-                  {ARCHES.map(a => (
+                  {arches.map(a => (
                     <SelectItem key={a} value={a}>{a}</SelectItem>
                   ))}
                 </SelectContent>
