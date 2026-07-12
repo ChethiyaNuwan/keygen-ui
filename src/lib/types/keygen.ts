@@ -209,6 +209,21 @@ export interface Entitlement extends KeygenResource {
   };
 }
 
+// Token
+export interface Token extends KeygenResource {
+  type: 'tokens';
+  attributes: {
+    kind: string;
+    /** Only returned when the token is first created — it cannot be read back. */
+    token?: string;
+    name?: string;
+    expiry?: string | null;
+    permissions?: string[];
+    created: string;
+    updated: string;
+  };
+}
+
 // Release
 export type ReleaseChannel = 'stable' | 'rc' | 'beta' | 'alpha' | 'dev';
 export type ReleaseStatus = 'DRAFT' | 'PUBLISHED' | 'YANKED';

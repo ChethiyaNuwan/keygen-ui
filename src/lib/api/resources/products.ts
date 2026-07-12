@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Product, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
+import { Product, Token, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
 
 export class ProductResource {
   constructor(private client: KeygenClient) {}
@@ -77,6 +77,44 @@ export class ProductResource {
   async delete(productId: string): Promise<void> {
     await this.client.request<void>(`/products/${productId}`, {
       method: 'DELETE'
+    });
+  }
+
+  /**
+   * List the product's tokens.
+   *
+   * The token secret itself is only ever returned at creation time, so this
+   * shows which tokens exist, not their values.
+   */
+  async listTokens(productId: string): Promise<KeygenListResponse<Token>> {
+    return this.client.request<Token[]>(`/products/${productId}/tokens`);
+  }
+
+  /**
+   * Mint a product-scoped token.
+   *
+   * This is what a build pipeline should use to publish releases — it can only
+   * act on this product, unlike an admin token.
+   *
+   * The secret is returned ONCE, in the response; it cannot be read back later.
+   */
+  async createToken(productId: string, data: {
+    name?: string;
+    expiry?: string | null;
+    permissions?: string[];
+  } = {}): Promise<KeygenResponse<Token>> {
+    return this.client.request<Token>(`/products/${productId}/tokens`, {
+      method: 'POST',
+      body: {
+        data: {
+          type: 'tokens',
+          attributes: {
+            name: data.name,
+            expiry: data.expiry ?? null,
+            ...(data.permissions ? { permissions: data.permissions } : {}),
+          },
+        },
+      },
     });
   }
 }
