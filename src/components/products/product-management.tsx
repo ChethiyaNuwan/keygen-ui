@@ -41,12 +41,14 @@ import {
   Edit,
   Trash2,
   ExternalLink,
+  KeyRound,
 } from 'lucide-react'
 // No direct toasts here; using centralized error handlers where needed
 import { handleLoadError } from '@/lib/utils/error-handling'
 import { CreateProductDialog } from './create-product-dialog'
 import { EditProductDialog } from './edit-product-dialog'
 import { DeleteProductDialog } from './delete-product-dialog'
+import { ProductTokensDialog } from './product-tokens-dialog'
 
 export function ProductManagement() {
   const [products, setProducts] = useState<Product[]>([])
@@ -57,6 +59,8 @@ export function ProductManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [tokensProduct, setTokensProduct] = useState<Product | null>(null)
+  const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const api = getKeygenApi()
 
   const loadProducts = useCallback(async () => {
@@ -127,6 +131,11 @@ export function ProductManagement() {
     } catch {
       // Invalid URL, do nothing
     }
+  }
+
+  const handleTokens = (product: Product) => {
+    setTokensProduct(product)
+    setTokensDialogOpen(true)
   }
 
   const handleEditProduct = (product: Product) => {
@@ -332,6 +341,10 @@ export function ProductManagement() {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit Product
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTokens(product)}>
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Tokens
+                          </DropdownMenuItem>
                           {product.attributes.url && (
                             <DropdownMenuItem onClick={() => openUrl(product.attributes.url!)}>
                               <ExternalLink className="mr-2 h-4 w-4" />
@@ -381,6 +394,12 @@ export function ProductManagement() {
       />
 
       {/* Delete Product Dialog */}
+      <ProductTokensDialog
+        product={tokensProduct}
+        open={tokensDialogOpen}
+        onOpenChange={setTokensDialogOpen}
+      />
+
       <DeleteProductDialog
         product={deleteProduct}
         open={deleteDialogOpen}
