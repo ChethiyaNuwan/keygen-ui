@@ -51,6 +51,7 @@ import {
   ChevronsRight,
   X,
   Loader2,
+  BadgeCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
@@ -210,6 +211,28 @@ export function LicenseManagement() {
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  /**
+   * Asks the server whether the licence is usable right now, and shows why not
+   * if it isn't (EXPIRED, SUSPENDED, TOO_MANY_MACHINES, …). The status column
+   * alone does not explain, say, an active licence that has used up its seats.
+   */
+  const handleValidateLicense = async (license: License) => {
+    try {
+      const result = await api.licenses.validate(license.id)
+      const meta = result.meta
+
+      if (meta?.valid) {
+        toast.success(`Valid — ${meta.detail}`)
+      } else {
+        toast.warning(`Not valid — ${meta?.detail ?? 'unknown reason'}`, {
+          description: meta?.code,
+        })
+      }
+    } catch (error: unknown) {
+      handleCrudError(error, 'update', 'License', { customMessage: 'Failed to validate license' })
+    }
   }
 
   const handleSuspendLicense = async (license: License) => {
@@ -523,6 +546,10 @@ export function LicenseManagement() {
                           <DropdownMenuItem onClick={() => handleEditLicense(license)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit License
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleValidateLicense(license)}>
+                            <BadgeCheck className="mr-2 h-4 w-4" />
+                            Validate
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleGenerateToken(license)}>
                             <Download className="mr-2 h-4 w-4" />
