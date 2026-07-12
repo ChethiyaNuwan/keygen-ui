@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Group, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
+import { Group, User, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
 
 export interface GroupFilters extends ListOptions {
   name?: string;
@@ -165,6 +165,27 @@ export class GroupResource {
     return this.client.request(`licenses/${licenseId}/group`, {
       method: 'PUT',
       body: { data: null },
+    });
+  }
+
+  /**
+   * Group owners — users who can administer the group.
+   */
+  async listOwners(id: string): Promise<KeygenListResponse<User>> {
+    return this.client.request<User[]>(`groups/${id}/owners`);
+  }
+
+  async attachOwners(id: string, userIds: string[]): Promise<KeygenResponse<unknown>> {
+    return this.client.request(`groups/${id}/owners`, {
+      method: 'POST',
+      body: { data: userIds.map(userId => ({ type: 'users', id: userId })) },
+    });
+  }
+
+  async detachOwners(id: string, userIds: string[]): Promise<void> {
+    await this.client.request(`groups/${id}/owners`, {
+      method: 'DELETE',
+      body: { data: userIds.map(userId => ({ type: 'users', id: userId })) },
     });
   }
 }
