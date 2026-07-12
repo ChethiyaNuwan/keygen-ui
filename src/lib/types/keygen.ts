@@ -234,6 +234,21 @@ export interface LicenseFile extends KeygenResource {
   };
 }
 
+// A single webhook delivery attempt.
+export interface WebhookEventRecord extends KeygenResource {
+  type: 'webhook-events';
+  attributes: {
+    endpoint: string;
+    event: string;
+    payload?: string;
+    status: 'DELIVERING' | 'DELIVERED' | 'FAILING' | 'FAILED';
+    lastResponseCode?: number | null;
+    lastResponseBody?: string | null;
+    created: string;
+    updated: string;
+  };
+}
+
 // Token
 export interface Token extends KeygenResource {
   type: 'tokens';
