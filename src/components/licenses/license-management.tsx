@@ -52,12 +52,14 @@ import {
   X,
   Loader2,
   BadgeCheck,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { CreateLicenseDialog } from './create-license-dialog'
 import { DeleteLicenseDialog } from './delete-license-dialog'
 import { EditLicenseDialog } from './edit-license-dialog'
+import { LicenseDetailsDialog } from './license-details-dialog'
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 const DEFAULT_PAGE_SIZE = 25
@@ -79,6 +81,7 @@ export function LicenseManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedLicense, setSelectedLicense] = useState<License | null>(null)
 
   // Pagination state
@@ -305,6 +308,11 @@ export function LicenseManagement() {
   const handleEditLicense = (license: License) => {
     setSelectedLicense(license)
     setEditDialogOpen(true)
+  }
+
+  const handleViewDetails = (license: License) => {
+    setSelectedLicense(license)
+    setDetailsDialogOpen(true)
   }
 
   const handleGenerateToken = async (license: License) => {
@@ -568,6 +576,10 @@ export function LicenseManagement() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleViewDetails(license)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditLicense(license)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit License
@@ -755,6 +767,16 @@ export function LicenseManagement() {
           license={selectedLicense}
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
+          onLicenseUpdated={handleRefresh}
+        />
+      )}
+
+      {/* Details Dialog */}
+      {selectedLicense && (
+        <LicenseDetailsDialog
+          license={selectedLicense}
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
           onLicenseUpdated={handleRefresh}
         />
       )}

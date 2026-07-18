@@ -1,5 +1,15 @@
 import { KeygenClient } from '../client';
-import { License, LicenseFilters, LicenseFile, LicenseValidation, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import {
+  License,
+  LicenseFilters,
+  LicenseFile,
+  LicenseValidation,
+  Machine,
+  Entitlement,
+  User,
+  KeygenResponse,
+  KeygenListResponse,
+} from '@/lib/types/keygen';
 import { setGroup } from './relationships';
 
 export class LicenseResource {
@@ -229,8 +239,8 @@ export class LicenseResource {
   /**
    * Get license entitlements
    */
-  async getEntitlements(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`licenses/${id}/entitlements`);
+  async getEntitlements(id: string): Promise<KeygenListResponse<Entitlement>> {
+    return this.client.request<Entitlement[]>(`licenses/${id}/entitlements`);
   }
 
   /**
@@ -270,8 +280,15 @@ export class LicenseResource {
   /**
    * Get license machines
    */
-  async getMachines(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`licenses/${id}/machines`);
+  async getMachines(id: string): Promise<KeygenListResponse<Machine>> {
+    return this.client.request<Machine[]>(`licenses/${id}/machines`);
+  }
+
+  /**
+   * Get users attached to a license (many-to-many, separate from the owner).
+   */
+  async getUsers(id: string): Promise<KeygenListResponse<User>> {
+    return this.client.request<User[]>(`licenses/${id}/users`);
   }
 
   /**
