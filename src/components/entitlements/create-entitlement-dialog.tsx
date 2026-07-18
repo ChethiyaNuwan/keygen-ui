@@ -1,13 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { getKeygenApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
+
+const entitlementSchema = z.object({
+  name: z.string().trim().min(1, 'Entitlement name is required'),
+  code: z.string().trim().min(1, 'Entitlement code is required'),
+})
+
+type EntitlementFormValues = z.infer<typeof entitlementSchema>
+
+const defaultValues: EntitlementFormValues = {
+  name: '',
+  code: '',
+}
+
+function generateCodeFromName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
 
 interface CreateEntitlementDialogProps {
   open: boolean
@@ -20,127 +47,108 @@ export function CreateEntitlementDialog({
   onOpenChange,
   onEntitlementCreated
 }: CreateEntitlementDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    code: ''
-  })
-
   const api = getKeygenApi()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim()) {
-      toast.error('Entitlement name is required')
-      return
-    }
+  const form = useForm<EntitlementFormValues>({
+    resolver: zodResolver(entitlementSchema),
+    defaultValues,
+  })
 
-    if (!formData.code.trim()) {
-      toast.error('Entitlement code is required')
-      return
-    }
+  const handleNameChange = (value: string) => {
+    form.setValue('name', value)
 
-    setLoading(true)
-    
+    // Auto-generate code if code field is empty
+    if (!form.getValues('code')) {
+      form.setValue('code', generateCodeFromName(value))
+    }
+  }
+
+  const onSubmit = async (values: EntitlementFormValues) => {
     try {
       await api.entitlements.create({
-        name: formData.name.trim(),
-        code: formData.code.trim()
+        name: values.name,
+        code: values.code
       })
-      
-      // Reset form
-      setFormData({
-        name: '',
-        code: ''
-      })
-      
+
+      form.reset(defaultValues)
       onEntitlementCreated()
     } catch (error: unknown) {
       handleFormError(error, 'Entitlement')
-    } finally {
-      setLoading(false)
     }
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
-
-  const generateCodeFromName = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-  }
-
-  const handleNameChange = (value: string) => {
-    handleInputChange('name', value)
-    
-    // Auto-generate code if code field is empty
-    if (!formData.code) {
-      handleInputChange('code', generateCodeFromName(value))
-    }
-  }
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create Entitlement</DialogTitle>
-            <DialogDescription>
-              Create a new entitlement to control feature access and permissions.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Entitlement Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Enter entitlement name (e.g., Premium Features)"
-                disabled={loading}
-                required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle>Create Entitlement</DialogTitle>
+              <DialogDescription>
+                Create a new entitlement to control feature access and permissions.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Entitlement Name *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter entitlement name (e.g., Premium Features)"
+                        disabled={loading}
+                        {...field}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Entitlement Code *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter code (e.g., premium_features)"
+                        disabled={loading}
+                        className="font-mono text-sm"
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Unique identifier for this entitlement. Use lowercase letters, numbers, and underscores only.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="code">Entitlement Code *</Label>
-              <Input
-                id="code"
-                value={formData.code}
-                onChange={(e) => handleInputChange('code', e.target.value)}
-                placeholder="Enter code (e.g., premium_features)"
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
                 disabled={loading}
-                required
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique identifier for this entitlement. Use lowercase letters, numbers, and underscores only.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Entitlement'}
-            </Button>
-          </DialogFooter>
-        </form>
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Creating...' : 'Create Entitlement'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
