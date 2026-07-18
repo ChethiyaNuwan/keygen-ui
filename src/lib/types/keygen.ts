@@ -407,13 +407,18 @@ export interface ReleaseArtifact extends KeygenResource {
   };
 }
 
-// Process
+// Process — verified against MachineProcessSerializer in keygen-api. There is
+// no `name`/`platform` attribute server-side (processes are identified by
+// PID only); the heartbeat status mirrors Machine's ALIVE/DEAD pattern.
 export interface Process extends KeygenResource {
   type: 'processes';
   attributes: {
     pid: number;
-    name?: string;
-    platform?: string;
+    status: 'ALIVE' | 'DEAD' | 'RESURRECTED';
+    interval: number;
+    lastHeartbeat?: string;
+    nextHeartbeat?: string;
+    metadata?: Record<string, unknown>;
     created: string;
     updated: string;
   };

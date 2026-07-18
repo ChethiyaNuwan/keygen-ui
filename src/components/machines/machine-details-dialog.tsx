@@ -37,9 +37,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Monitor, Cpu, Activity, RotateCcw, Download, Copy, Pencil, Check, X } from 'lucide-react'
+import { Monitor, Cpu, Activity, RotateCcw, Download, Copy, Pencil, Check, X, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 interface MachineDetailsDialogProps {
   machine: Machine
@@ -99,6 +102,9 @@ export function MachineDetailsDialog({ machine, open, onOpenChange, onMachineUpd
   const [components, setComponents] = useState<Component[]>([])
   const [processesLoaded, setProcessesLoaded] = useState(false)
   const [processesLoading, setProcessesLoading] = useState(false)
+  const [processToKill, setProcessToKill] = useState<Process | null>(null)
+  const [killDialogOpen, setKillDialogOpen] = useState(false)
+  const [killing, setKilling] = useState(false)
 
   const [pinging, setPinging] = useState(false)
   const [resettingHeartbeat, setResettingHeartbeat] = useState(false)
@@ -142,6 +148,40 @@ export function MachineDetailsDialog({ machine, open, onOpenChange, onMachineUpd
       setProcessesLoading(false)
     }
   }, [api.machines, machine.id])
+
+  const handleKillProcess = (process: Process) => {
+    setProcessToKill(process)
+    setKillDialogOpen(true)
+  }
+
+  const confirmKillProcess = async () => {
+    if (!processToKill) return
+    try {
+      setKilling(true)
+      await api.processes.kill(processToKill.id)
+      toast.success('Process killed')
+      setKillDialogOpen(false)
+      await loadProcessesAndComponents()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Process', {
+        onNotFound: () => { setKillDialogOpen(false); loadProcessesAndComponents() },
+      })
+    } finally {
+      setKilling(false)
+    }
+  }
+
+  const getProcessStatusTone = (status: Process['attributes']['status']): StatusTone => {
+    switch (status) {
+      case 'ALIVE':
+      case 'RESURRECTED':
+        return 'success'
+      case 'DEAD':
+        return 'danger'
+      default:
+        return 'neutral'
+    }
+  }
 
   useEffect(() => {
     if (open) {
@@ -269,6 +309,7 @@ export function MachineDetailsDialog({ machine, open, onOpenChange, onMachineUpd
   const groupName = groups.find((g) => g.id === groupId)?.attributes.name
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
@@ -494,8 +535,26 @@ export function MachineDetailsDialog({ machine, open, onOpenChange, onMachineUpd
                   <div className="space-y-2">
                     {processes.map((process) => (
                       <div key={process.id} className="flex items-center justify-between p-2 border rounded text-sm">
-                        <span>{process.attributes.name || `PID ${process.attributes.pid}`}</span>
-                        <Badge variant="outline">{process.attributes.platform || 'unknown'}</Badge>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">PID {process.attributes.pid}</span>
+                          <StatusBadge tone={getProcessStatusTone(process.attributes.status)}>
+                            {process.attributes.status.toLowerCase()}
+                          </StatusBadge>
+                          {process.attributes.lastHeartbeat && (
+                            <span className="text-xs text-muted-foreground">
+                              last heartbeat {formatDateTime(process.attributes.lastHeartbeat)}
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          onClick={() => handleKillProcess(process)}
+                          title="Kill process"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -599,5 +658,26 @@ export function MachineDetailsDialog({ machine, open, onOpenChange, onMachineUpd
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={killDialogOpen}
+      onOpenChange={setKillDialogOpen}
+      title="Kill this process?"
+      description={
+        <>
+          This will terminate process{' '}
+          <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+            PID {processToKill?.attributes.pid}
+          </code>{' '}
+          on this machine. If it&apos;s monitored by a policy that requires heartbeats, the
+          license may be affected once its heartbeat lapses.
+        </>
+      }
+      confirmLabel="Kill Process"
+      destructive
+      loading={killing}
+      onConfirm={confirmKillProcess}
+    />
+    </>
   )
 }
