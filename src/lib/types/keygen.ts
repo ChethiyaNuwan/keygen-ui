@@ -411,12 +411,6 @@ export interface PaginationOptions {
   limit?: number;
 }
 
-// List options interface
-export interface ListOptions {
-  limit?: number;
-  page?: number;
-}
-
 // List response interface
 export interface KeygenListResponse<T = unknown> extends KeygenResponse<T[]> {
   meta?: {

@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Token, KeygenResponse, KeygenListResponse, ListOptions } from '../../types/keygen';
+import { Token, KeygenResponse, KeygenListResponse, PaginationOptions } from '../../types/keygen';
 
 /**
  * Account-wide API tokens.
@@ -10,7 +10,7 @@ import { Token, KeygenResponse, KeygenListResponse, ListOptions } from '../../ty
 export class TokenResource {
   constructor(private client: KeygenClient) {}
 
-  async list(options: ListOptions = {}): Promise<KeygenListResponse<Token>> {
+  async list(options: PaginationOptions = {}): Promise<KeygenListResponse<Token>> {
     const params: Record<string, unknown> = {};
     if (options.limit) params.limit = options.limit;
     if (options.page) params.page = options.page;

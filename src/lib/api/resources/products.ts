@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Product, Token, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
+import { Product, Token, KeygenResponse, PaginationOptions, KeygenListResponse } from '../../types/keygen';
 
 export class ProductResource {
   constructor(private client: KeygenClient) {}
@@ -7,15 +7,16 @@ export class ProductResource {
   /**
    * List all products
    */
-  async list(options?: ListOptions): Promise<KeygenListResponse<Product>> {
+  async list(options?: PaginationOptions): Promise<KeygenListResponse<Product>> {
     const queryParams = new URLSearchParams();
-    
+
     if (options?.limit) queryParams.set('limit', options.limit.toString());
-    if (options?.page) queryParams.set('page', options.page.toString());
-    
+    if (options?.page?.size) queryParams.set('page[size]', options.page.size.toString());
+    if (options?.page?.number) queryParams.set('page[number]', options.page.number.toString());
+
     const query = queryParams.toString();
     const endpoint = query ? `/products?${query}` : '/products';
-    
+
     return this.client.request<Product[]>(endpoint);
   }
 

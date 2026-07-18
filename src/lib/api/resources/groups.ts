@@ -1,7 +1,7 @@
 import { KeygenClient } from '../client';
-import { Group, User, KeygenResponse, ListOptions, KeygenListResponse } from '../../types/keygen';
+import { Group, User, KeygenResponse, PaginationOptions, KeygenListResponse } from '../../types/keygen';
 
-export interface GroupFilters extends ListOptions {
+export interface GroupFilters extends PaginationOptions {
   name?: string;
   maxLicenses?: number;
   maxMachines?: number;
@@ -104,7 +104,7 @@ export class GroupResource {
   /**
    * Get group licenses
    */
-  async getLicenses(id: string, options: ListOptions = {}): Promise<KeygenResponse<unknown[]>> {
+  async getLicenses(id: string, options: PaginationOptions = {}): Promise<KeygenResponse<unknown[]>> {
     const params: Record<string, unknown> = {};
     if (options.limit) params.limit = options.limit;
     if (options.page) params.page = options.page;
@@ -115,7 +115,7 @@ export class GroupResource {
   /**
    * Get group users
    */
-  async getUsers(id: string, options: ListOptions = {}): Promise<KeygenResponse<unknown[]>> {
+  async getUsers(id: string, options: PaginationOptions = {}): Promise<KeygenResponse<unknown[]>> {
     const params: Record<string, unknown> = {};
     if (options.limit) params.limit = options.limit;
     if (options.page) params.page = options.page;
