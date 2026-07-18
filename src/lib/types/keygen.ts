@@ -89,7 +89,11 @@ export interface License extends KeygenResource {
   attributes: {
     name?: string;
     key: string;
-    status: 'active' | 'inactive' | 'expired' | 'suspended' | 'banned';
+    // Server serializes License#status directly from a Ruby symbol
+    // (:ACTIVE, :BANNED, etc.) — verified against license.rb's `def status`
+    // and license_serializer.rb's bare `attribute :status` (no downcasing
+    // block), so the wire value is uppercase, not lowercase.
+    status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'EXPIRING' | 'SUSPENDED' | 'BANNED';
     uses: number;
     maxUses?: number;
     protected: boolean;

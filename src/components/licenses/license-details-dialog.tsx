@@ -402,7 +402,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
                   <div>
                     <Label className="text-muted-foreground">Status</Label>
                     <p className="text-sm mt-1">
-                      <Badge variant="outline">{license.attributes.status}</Badge>
+                      <Badge variant="outline">{license.attributes.status.toLowerCase()}</Badge>
                     </p>
                   </div>
                   <div>

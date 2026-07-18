@@ -303,8 +303,8 @@ export function GroupDetailsDialog({ group, open, onOpenChange }: GroupDetailsDi
                           <p className="text-xs text-muted-foreground font-mono">{license.attributes.key}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={license.attributes.status === 'active' ? 'default' : 'secondary'}>
-                            {license.attributes.status}
+                          <Badge variant={license.attributes.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                            {license.attributes.status.toLowerCase()}
                           </Badge>
                           <Button size="sm" variant="ghost" onClick={() => handleRemoveLicense(license)}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />

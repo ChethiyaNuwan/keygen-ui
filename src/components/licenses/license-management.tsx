@@ -182,8 +182,8 @@ export function LicenseManagement() {
     try {
       setAccountStats(prev => ({ ...prev, loading: true }))
       const [activeResponse, expiredResponse] = await Promise.all([
-        api.licenses.list({ limit: 1, status: 'active' }),
-        api.licenses.list({ limit: 1, status: 'expired' }),
+        api.licenses.list({ limit: 1, status: 'ACTIVE' }),
+        api.licenses.list({ limit: 1, status: 'EXPIRED' }),
       ])
       setAccountStats({
         active: activeResponse.meta?.count ?? 0,
@@ -208,7 +208,9 @@ export function LicenseManagement() {
     switch (status.toLowerCase()) {
       case 'active': return 'success'
       case 'suspended': return 'warning'
+      case 'expiring': return 'warning'
       case 'expired': return 'danger'
+      case 'banned': return 'danger'
       default: return 'neutral'
     }
   }
@@ -415,10 +417,12 @@ export function LicenseManagement() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="suspended">Suspended</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="ACTIVE">Active</SelectItem>
+            <SelectItem value="SUSPENDED">Suspended</SelectItem>
+            <SelectItem value="EXPIRED">Expired</SelectItem>
+            <SelectItem value="EXPIRING">Expiring</SelectItem>
+            <SelectItem value="INACTIVE">Inactive</SelectItem>
+            <SelectItem value="BANNED">Banned</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -484,7 +488,7 @@ export function LicenseManagement() {
                     </TableCell>
                     <TableCell>
                       <StatusBadge tone={getLicenseStatusTone(license.attributes.status)}>
-                        {license.attributes.status}
+                        {license.attributes.status.toLowerCase()}
                       </StatusBadge>
                     </TableCell>
                     <TableCell>
@@ -530,7 +534,7 @@ export function LicenseManagement() {
                             <Download className="mr-2 h-4 w-4" />
                             Generate Token
                           </DropdownMenuItem>
-                          {license.attributes.status === 'active' ? (
+                          {license.attributes.status === 'ACTIVE' ? (
                             <DropdownMenuItem
                               onClick={() => handleSuspendLicense(license)}
                             >
@@ -545,7 +549,7 @@ export function LicenseManagement() {
                               Reinstate
                             </DropdownMenuItem>
                           )}
-                          {license.attributes.status === 'expired' && (
+                          {license.attributes.status === 'EXPIRED' && (
                             <DropdownMenuItem
                               onClick={() => handleRenewLicense(license)}
                             >

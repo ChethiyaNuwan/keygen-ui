@@ -130,8 +130,8 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                           <p className="text-sm font-medium">{license.attributes.name || 'Unnamed License'}</p>
                           <p className="text-xs text-muted-foreground font-mono">{license.attributes.key}</p>
                         </div>
-                        <Badge variant={license.attributes.status === 'active' ? 'default' : 'secondary'}>
-                          {license.attributes.status}
+                        <Badge variant={license.attributes.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                          {license.attributes.status.toLowerCase()}
                         </Badge>
                       </div>
                     ))}
