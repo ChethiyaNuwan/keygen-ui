@@ -100,12 +100,15 @@ export class UserResource {
   }
 
   /**
-   * Update user password
+   * Update the authenticated user's own password. Requires an auth token —
+   * this is the "change your password" action, not an admin override.
+   * Wire format is `meta: { oldPassword, newPassword }` (Keygen's
+   * PasswordController binds these to `old_password`/`new_password`).
    */
-  async updatePassword(id: string, currentPassword: string, newPassword: string): Promise<KeygenResponse<User>> {
+  async updatePassword(id: string, oldPassword: string, newPassword: string): Promise<KeygenResponse<User>> {
     const body = {
       meta: {
-        currentPassword,
+        oldPassword,
         newPassword,
       },
     };
@@ -117,11 +120,20 @@ export class UserResource {
   }
 
   /**
-   * Reset user password
+   * Complete a password reset using the token from the reset email. This is
+   * the *fulfillment* endpoint a "reset your password" link lands on
+   * (unauthenticated, keyed by the emailed token) — not an admin action.
+   * To trigger the email in the first place, use `passwords.resetRequest`.
    */
-  async resetPassword(id: string): Promise<KeygenResponse<unknown>> {
-    return this.client.request(`users/${id}/actions/reset-password`, {
+  async resetPassword(id: string, passwordResetToken: string, newPassword: string): Promise<KeygenResponse<User>> {
+    return this.client.request<User>(`users/${id}/actions/reset-password`, {
       method: 'POST',
+      body: {
+        meta: {
+          passwordResetToken,
+          newPassword,
+        },
+      },
     });
   }
 
