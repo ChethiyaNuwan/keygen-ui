@@ -274,6 +274,21 @@ export interface LicenseFile extends KeygenResource {
   };
 }
 
+// A signed machine file — same idea as LicenseFile, scoped to one machine.
+export interface MachineFile extends KeygenResource {
+  type: 'machine-files';
+  attributes: {
+    certificate: string;
+    algorithm: string;
+    /** Relationships embedded in the certificate, e.g. ['license.entitlements']. */
+    includes?: string[];
+    /** Seconds the file stays valid without contacting the server. */
+    ttl: number | null;
+    issued: string;
+    expiry: string | null;
+  };
+}
+
 // A single webhook delivery attempt.
 export interface WebhookEventRecord extends KeygenResource {
   type: 'webhook-events';

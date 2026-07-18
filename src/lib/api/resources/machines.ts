@@ -1,5 +1,6 @@
 import { KeygenClient } from '../client';
-import { Machine, MachineFilters, KeygenResponse } from '@/lib/types/keygen';
+import { Machine, MachineFilters, MachineFile, Process, Component, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import { setGroup } from './relationships';
 
 export class MachineResource {
   constructor(private client: KeygenClient) {}
@@ -7,7 +8,7 @@ export class MachineResource {
   /**
    * List all machines
    */
-  async list(filters: MachineFilters = {}): Promise<KeygenResponse<Machine[]>> {
+  async list(filters: MachineFilters = {}): Promise<KeygenListResponse<Machine>> {
     const params = {
       ...this.client.buildPaginationParams(filters),
     };
@@ -103,11 +104,24 @@ export class MachineResource {
   }
 
   /**
-   * Check out a machine
+   * Check out a machine file: a signed snapshot the client verifies offline,
+   * mirroring licenses.checkOut. `ttl` (seconds) is how long it stays valid
+   * without contacting the server.
    */
-  async checkOut(id: string): Promise<KeygenResponse<Machine>> {
-    return this.client.request<Machine>(`machines/${id}/actions/check-out`, {
+  async checkOut(id: string, options: {
+    ttl?: number;
+    include?: string[];
+    encrypt?: boolean;
+  } = {}): Promise<KeygenResponse<MachineFile>> {
+    return this.client.request<MachineFile>(`machines/${id}/actions/check-out`, {
       method: 'POST',
+      body: {
+        meta: {
+          ...(options.ttl !== undefined && { ttl: options.ttl }),
+          ...(options.include && { include: options.include }),
+          ...(options.encrypt !== undefined && { encrypt: options.encrypt }),
+        },
+      },
     });
   }
 
@@ -132,15 +146,15 @@ export class MachineResource {
   /**
    * Get machine processes
    */
-  async getProcesses(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`machines/${id}/processes`);
+  async getProcesses(id: string): Promise<KeygenListResponse<Process>> {
+    return this.client.request<Process[]>(`machines/${id}/processes`);
   }
 
   /**
    * Get machine components
    */
-  async getComponents(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`machines/${id}/components`);
+  async getComponents(id: string): Promise<KeygenListResponse<Component>> {
+    return this.client.request<Component[]>(`machines/${id}/components`);
   }
 
   /**
@@ -158,16 +172,9 @@ export class MachineResource {
   }
 
   /**
-   * Change machine group
+   * Change machine group. Pass `null` to remove the machine from its group.
    */
-  async changeGroup(id: string, groupId: string): Promise<KeygenResponse<Machine>> {
-    const body = {
-      data: { type: 'groups', id: groupId },
-    };
-
-    return this.client.request<Machine>(`machines/${id}/group`, {
-      method: 'PUT',
-      body,
-    });
+  async changeGroup(id: string, groupId: string | null): Promise<KeygenResponse<Machine>> {
+    return setGroup<Machine>(this.client, `machines/${id}`, groupId);
   }
 }
