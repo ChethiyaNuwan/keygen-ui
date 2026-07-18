@@ -1,5 +1,6 @@
 import { KeygenClient } from '../client';
 import { License, LicenseFilters, LicenseFile, LicenseValidation, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import { setGroup } from './relationships';
 
 export class LicenseResource {
   constructor(private client: KeygenClient) {}
@@ -302,17 +303,10 @@ export class LicenseResource {
   }
 
   /**
-   * Change license group
+   * Change license group. Pass `null` to remove the license from its group.
    */
-  async changeGroup(id: string, groupId: string): Promise<KeygenResponse<License>> {
-    const body = {
-      data: { type: 'groups', id: groupId },
-    };
-
-    return this.client.request<License>(`licenses/${id}/group`, {
-      method: 'PUT',
-      body,
-    });
+  async changeGroup(id: string, groupId: string | null): Promise<KeygenResponse<License>> {
+    return setGroup<License>(this.client, `licenses/${id}`, groupId);
   }
 
   /**

@@ -1,5 +1,6 @@
 import { KeygenClient } from '../client';
 import { User, UserFilters, KeygenResponse } from '@/lib/types/keygen';
+import { setGroup } from './relationships';
 
 export class UserResource {
   constructor(private client: KeygenClient) {}
@@ -182,17 +183,10 @@ export class UserResource {
   }
 
   /**
-   * Change user group
+   * Change user group. Pass `null` to remove the user from their group.
    */
-  async changeGroup(id: string, groupId: string): Promise<KeygenResponse<User>> {
-    const body = {
-      data: { type: 'groups', id: groupId },
-    };
-
-    return this.client.request<User>(`users/${id}/group`, {
-      method: 'PATCH',
-      body,
-    });
+  async changeGroup(id: string, groupId: string | null): Promise<KeygenResponse<User>> {
+    return setGroup<User>(this.client, `users/${id}`, groupId);
   }
 
   /**

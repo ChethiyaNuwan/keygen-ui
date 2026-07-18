@@ -1,5 +1,6 @@
 import { KeygenClient } from '../client';
-import { Group, User, KeygenResponse, PaginationOptions, KeygenListResponse } from '../../types/keygen';
+import { Group, User, License, KeygenResponse, PaginationOptions, KeygenListResponse } from '../../types/keygen';
+import { setGroup } from './relationships';
 
 export interface GroupFilters extends PaginationOptions {
   name?: string;
@@ -126,46 +127,34 @@ export class GroupResource {
   /**
    * Add user to group
    */
-  async addUser(id: string, userId: string): Promise<KeygenResponse<unknown>> {
+  async addUser(id: string, userId: string): Promise<KeygenResponse<User>> {
     // Group membership is written on the member, not the group: Keygen exposes
     // no attach endpoint under /groups/:id/users (only index/show).
-    return this.client.request(`users/${userId}/group`, {
-      method: 'PUT',
-      body: { data: { type: 'groups', id } },
-    });
+    return setGroup<User>(this.client, `users/${userId}`, id);
   }
 
   /**
    * Remove user from group
    */
-  async removeUser(id: string, userId: string): Promise<KeygenResponse<unknown>> {
+  async removeUser(id: string, userId: string): Promise<KeygenResponse<User>> {
     void id;
     // Clearing the member's group is how it leaves one.
-    return this.client.request(`users/${userId}/group`, {
-      method: 'PUT',
-      body: { data: null },
-    });
+    return setGroup<User>(this.client, `users/${userId}`, null);
   }
 
   /**
    * Add license to group
    */
-  async addLicense(id: string, licenseId: string): Promise<KeygenResponse<unknown>> {
-    return this.client.request(`licenses/${licenseId}/group`, {
-      method: 'PUT',
-      body: { data: { type: 'groups', id } },
-    });
+  async addLicense(id: string, licenseId: string): Promise<KeygenResponse<License>> {
+    return setGroup<License>(this.client, `licenses/${licenseId}`, id);
   }
 
   /**
    * Remove license from group
    */
-  async removeLicense(id: string, licenseId: string): Promise<KeygenResponse<unknown>> {
+  async removeLicense(id: string, licenseId: string): Promise<KeygenResponse<License>> {
     void id;
-    return this.client.request(`licenses/${licenseId}/group`, {
-      method: 'PUT',
-      body: { data: null },
-    });
+    return setGroup<License>(this.client, `licenses/${licenseId}`, null);
   }
 
   /**
