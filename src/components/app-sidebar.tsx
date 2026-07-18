@@ -13,6 +13,7 @@ import {
   IconShieldCheck,
   IconWebhook,
   IconRocket,
+  IconHistory,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -80,6 +81,11 @@ const data = {
       title: "Users",
       url: "/users",
       icon: IconUsers,
+    },
+    {
+      title: "Logs",
+      url: "/logs",
+      icon: IconHistory,
     },
   ],
   navSecondary: [
