@@ -1,12 +1,14 @@
 import { KeygenClient } from '../client';
-import { User, UserFilters, License, Machine, SecondFactor, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import { User, UserFilters, License, Machine, SecondFactor, ALL_USER_ROLES, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
 import { setGroup } from './relationships';
 
 export class UserResource {
   constructor(private client: KeygenClient) {}
 
   /**
-   * List all users
+   * List all users. Always sends `roles` explicitly — Keygen's `roles`
+   * scope defaults to `[user]` when the param is absent, so an unfiltered
+   * call would otherwise silently exclude every admin/developer/etc.
    */
   async list(filters: UserFilters = {}): Promise<KeygenListResponse<User>> {
     const params = {
@@ -15,7 +17,7 @@ export class UserResource {
 
     // Add filter parameters
     if (filters.email) params.email = filters.email;
-    if (filters.role) params.role = filters.role;
+    params.roles = filters.roles && filters.roles.length > 0 ? filters.roles : ALL_USER_ROLES;
     if (filters.status) params.status = filters.status;
 
     return this.client.request<User[]>('users', { params });

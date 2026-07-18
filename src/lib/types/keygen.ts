@@ -525,9 +525,21 @@ export interface MachineFilters extends PaginationOptions {
 
 export interface UserFilters extends PaginationOptions {
   email?: string;
-  role?: User['attributes']['role'];
-  status?: User['attributes']['status'];
+  /**
+   * Which roles to include. Keygen's `roles` scope (note: plural — a
+   * differently-named `role` param is silently ignored) defaults to
+   * `[user]` when omitted, so UserResource.list() always sends every role
+   * unless the caller narrows it — otherwise admins/developers/etc. never
+   * appear in a "list all users" call.
+   */
+  roles?: User['attributes']['role'][];
+  /** Server-side scope only recognizes these three, case-insensitively. */
+  status?: 'ACTIVE' | 'INACTIVE' | 'BANNED';
 }
+
+export const ALL_USER_ROLES: User['attributes']['role'][] = [
+  'admin', 'developer', 'sales-agent', 'support-agent', 'read-only', 'user',
+];
 
 export interface EventLogFilters extends PaginationOptions {
   event?: string;
