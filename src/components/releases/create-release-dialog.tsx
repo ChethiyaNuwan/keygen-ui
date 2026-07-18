@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,8 +14,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -23,9 +33,31 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Plus } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
-import { Product, ReleaseChannel } from '@/lib/types/keygen'
+import { Product } from '@/lib/types/keygen'
 import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
+
+const CHANNELS = ['stable', 'rc', 'beta', 'alpha', 'dev'] as const
+
+const releaseSchema = z.object({
+  productId: z.string().min(1, 'Please select a product'),
+  version: z.string().trim().min(1, 'Please enter a version (semver, e.g. 1.2.3)'),
+  channel: z.enum(CHANNELS),
+  name: z.string(),
+  tag: z.string(),
+  description: z.string(),
+})
+
+type ReleaseFormValues = z.infer<typeof releaseSchema>
+
+const defaultValues: ReleaseFormValues = {
+  productId: '',
+  version: '',
+  channel: 'stable',
+  name: '',
+  tag: '',
+  description: '',
+}
 
 interface CreateReleaseDialogProps {
   products: Product[]
@@ -34,63 +66,35 @@ interface CreateReleaseDialogProps {
 
 export function CreateReleaseDialog({ products, onReleaseCreated }: CreateReleaseDialogProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    productId: '',
-    version: '',
-    channel: 'stable' as ReleaseChannel,
-    name: '',
-    tag: '',
-    description: '',
-  })
 
   const api = getKeygenApi()
 
-  const resetForm = () => {
-    setFormData({
-      productId: '',
-      version: '',
-      channel: 'stable',
-      name: '',
-      tag: '',
-      description: '',
-    })
-  }
+  const form = useForm<ReleaseFormValues>({
+    resolver: zodResolver(releaseSchema),
+    defaultValues,
+  })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.productId) {
-      toast.error('Please select a product')
-      return
-    }
-    if (!formData.version.trim()) {
-      toast.error('Please enter a version (semver, e.g. 1.2.3)')
-      return
-    }
-
+  const onSubmit = async (values: ReleaseFormValues) => {
     try {
-      setLoading(true)
-
       await api.releases.create({
-        productId: formData.productId,
-        version: formData.version.trim(),
-        channel: formData.channel,
-        name: formData.name.trim() || undefined,
-        tag: formData.tag.trim() || undefined,
-        description: formData.description.trim() || undefined,
+        productId: values.productId,
+        version: values.version,
+        channel: values.channel,
+        name: values.name.trim() || undefined,
+        tag: values.tag.trim() || undefined,
+        description: values.description.trim() || undefined,
       })
 
-      toast.success(`Release ${formData.version} created as draft`)
-      resetForm()
+      toast.success(`Release ${values.version} created as draft`)
+      form.reset(defaultValues)
       setOpen(false)
       onReleaseCreated?.()
     } catch (error: unknown) {
       handleFormError(error, 'release')
-    } finally {
-      setLoading(false)
     }
   }
+
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -102,99 +106,127 @@ export function CreateReleaseDialog({ products, onReleaseCreated }: CreateReleas
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create Release</DialogTitle>
-            <DialogDescription>
-              Releases are created as drafts. Upload artifacts, then publish to make it downloadable.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="product">Product *</Label>
-              <Select
-                value={formData.productId}
-                onValueChange={(value) => setFormData({ ...formData, productId: value })}
-              >
-                <SelectTrigger id="product">
-                  <SelectValue placeholder="Select a product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map(product => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.attributes.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="version">Version *</Label>
-                <Input
-                  id="version"
-                  placeholder="1.0.0"
-                  value={formData.version}
-                  onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle>Create Release</DialogTitle>
+              <DialogDescription>
+                Releases are created as drafts. Upload artifacts, then publish to make it downloadable.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <FormField
+                control={form.control}
+                name="productId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {products.map(product => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.attributes.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="version"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Version *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="1.0.0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="channel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Channel *</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="stable">Stable</SelectItem>
+                          <SelectItem value="rc">RC</SelectItem>
+                          <SelectItem value="beta">Beta</SelectItem>
+                          <SelectItem value="alpha">Alpha</SelectItem>
+                          <SelectItem value="dev">Dev</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="channel">Channel *</Label>
-                <Select
-                  value={formData.channel}
-                  onValueChange={(value) => setFormData({ ...formData, channel: value as ReleaseChannel })}
-                >
-                  <SelectTrigger id="channel">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stable">Stable</SelectItem>
-                    <SelectItem value="rc">RC</SelectItem>
-                    <SelectItem value="beta">Beta</SelectItem>
-                    <SelectItem value="alpha">Alpha</SelectItem>
-                    <SelectItem value="dev">Dev</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g. My App 1.0.0"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. My App 1.0.0" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="tag"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tag</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. latest" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Release notes or changelog..." rows={3} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="tag">Tag</Label>
-              <Input
-                id="tag"
-                placeholder="e.g. latest"
-                value={formData.tag}
-                onChange={(e) => setFormData({ ...formData, tag: e.target.value })}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Release notes or changelog..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Draft'}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Creating...' : 'Create Draft'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
