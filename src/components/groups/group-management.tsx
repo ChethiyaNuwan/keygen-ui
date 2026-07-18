@@ -1,27 +1,31 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Group } from '@/lib/types/keygen'
+import { Group, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreHorizontal, Users, Trash2, Edit, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreateGroupDialog } from './create-group-dialog'
 import { EditGroupDialog } from './edit-group-dialog'
 import { GroupDetailsDialog } from './group-details-dialog'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function GroupManagement() {
-  const [groups, setGroups] = useState<Group[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -29,23 +33,46 @@ export function GroupManagement() {
   const [deleting, setDeleting] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
-  
-  const api = getKeygenApi()
 
-  const loadGroups = useCallback(async () => {
+  const api = getKeygenApi()
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  // GroupsController registers no has_scope calls at all — the name/
+  // maxLicenses/maxMachines/maxUsers params GroupResource.list() sends were
+  // never read server-side. Only search_name exists as a Group scope, so
+  // that's the one filter that can actually work under real pagination.
+  const fetchGroups = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Group>> => {
     try {
-      const response = await api.groups.list({ limit: 100 })
-      setGroups(response.data || [])
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        return await api.search.search<Group>({
+          type: 'groups',
+          query: { name: trimmed },
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.groups.list({ page: { size: pageSize, number: page } })
     } catch (error: unknown) {
       handleLoadError(error, 'groups')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.groups])
+  }, [api.groups, api.search, debouncedSearch])
 
-  useEffect(() => {
-    loadGroups()
-  }, [loadGroups])
+  const {
+    data: groups,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadGroups,
+  } = usePaginatedList<Group>({
+    fetcher: fetchGroups,
+    resetOn: [debouncedSearch],
+  })
 
   const handleEdit = (group: Group) => {
     setSelectedGroup(group)
@@ -93,11 +120,6 @@ export function GroupManagement() {
     }
   }
 
-  const filteredGroups = groups.filter(group => 
-    group.attributes.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-
   return (
     <div className="space-y-6 px-4 lg:px-6">
       {/* Header */}
@@ -143,95 +165,101 @@ export function GroupManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Groups ({filteredGroups.length})
+            Groups ({totalCount})
           </CardTitle>
           <CardDescription>
             Manage your groups and their configurations
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Max Licenses</TableHead>
-                  <TableHead>Max Machines</TableHead>
-                  <TableHead>Max Users</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredGroups.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      {searchTerm ? 'No groups match your search.' : 'No groups found.'}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Max Licenses</TableHead>
+                <TableHead>Max Machines</TableHead>
+                <TableHead>Max Users</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={6} />
+              ) : groups.length > 0 ? (
+                groups.map((group) => (
+                  <TableRow key={group.id}>
+                    <TableCell className="font-medium">{group.attributes.name}</TableCell>
+                    <TableCell>
+                      {group.attributes.maxLicenses ? (
+                        <Badge variant="secondary">{group.attributes.maxLicenses}</Badge>
+                      ) : (
+                        <Badge variant="outline">Unlimited</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {group.attributes.maxMachines ? (
+                        <Badge variant="secondary">{group.attributes.maxMachines}</Badge>
+                      ) : (
+                        <Badge variant="outline">Unlimited</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {group.attributes.maxUsers ? (
+                        <Badge variant="secondary">{group.attributes.maxUsers}</Badge>
+                      ) : (
+                        <Badge variant="outline">Unlimited</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{formatDate(group.attributes.created)}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(group)} className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(group)} className="gap-2">
+                            <Edit className="h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(group)}
+                            className="gap-2 text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredGroups.map((group) => (
-                    <TableRow key={group.id}>
-                      <TableCell className="font-medium">{group.attributes.name}</TableCell>
-                      <TableCell>
-                        {group.attributes.maxLicenses ? (
-                          <Badge variant="secondary">{group.attributes.maxLicenses}</Badge>
-                        ) : (
-                          <Badge variant="outline">Unlimited</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {group.attributes.maxMachines ? (
-                          <Badge variant="secondary">{group.attributes.maxMachines}</Badge>
-                        ) : (
-                          <Badge variant="outline">Unlimited</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {group.attributes.maxUsers ? (
-                          <Badge variant="secondary">{group.attributes.maxUsers}</Badge>
-                        ) : (
-                          <Badge variant="outline">Unlimited</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{formatDate(group.attributes.created)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetails(group)} className="gap-2">
-                              <Eye className="h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(group)} className="gap-2">
-                              <Edit className="h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(group)} 
-                              className="gap-2 text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  colSpan={6}
+                  title="No groups found"
+                  description={searchTerm ? 'Try adjusting your search' : 'Create a group to get started'}
+                />
+              )}
+            </TableBody>
+          </Table>
+
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
