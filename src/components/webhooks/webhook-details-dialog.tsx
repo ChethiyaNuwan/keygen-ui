@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Webhook as WebhookIcon, Calendar, Info, Activity, TestTube, Copy } from 'lucide-react'
+import { Webhook as WebhookIcon, Calendar, Info, Activity, TestTube, Copy, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 interface WebhookDetailsDialogProps {
   webhook: Webhook
@@ -26,7 +27,10 @@ export function WebhookDetailsDialog({
   const [deliveries, setDeliveries] = useState<WebhookEventRecord[]>([])
   const [loadingDeliveries, setLoadingDeliveries] = useState(false)
   const [retrying, setRetrying] = useState<string | null>(null)
-  
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [pendingDelivery, setPendingDelivery] = useState<WebhookEventRecord | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const api = getKeygenApi()
 
   const loadWebhookDeliveries = useCallback(async () => {
@@ -61,6 +65,29 @@ export function WebhookDetailsDialog({
       })
     } finally {
       setRetrying(null)
+    }
+  }
+
+  const handleDeleteDeliveryClick = (delivery: WebhookEventRecord) => {
+    setPendingDelivery(delivery)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteDelivery = async () => {
+    if (!pendingDelivery) return
+    try {
+      setDeleting(true)
+      await api.webhooks.deleteEvent(pendingDelivery.id)
+      toast.success('Delivery deleted')
+      setDeleteConfirmOpen(false)
+      setPendingDelivery(null)
+      await loadWebhookDeliveries()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Webhook delivery', {
+        customMessage: 'Failed to delete the delivery',
+      })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -112,6 +139,7 @@ export function WebhookDetailsDialog({
   const eventGroups = groupEventsByResource(webhook.attributes.subscriptions)
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
@@ -298,6 +326,13 @@ export function WebhookDetailsDialog({
                               {retrying === delivery.id ? 'Retrying…' : 'Retry'}
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteDeliveryClick(delivery)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
                         </div>
                       </div>
                     )
@@ -319,5 +354,17 @@ export function WebhookDetailsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      onOpenChange={setDeleteConfirmOpen}
+      title="Delete this delivery?"
+      description="This removes the delivery record permanently. It does not affect whether the event was actually received by your endpoint."
+      confirmLabel="Delete"
+      destructive
+      loading={deleting}
+      onConfirm={confirmDeleteDelivery}
+    />
+    </>
   )
 }
