@@ -94,7 +94,7 @@ export function EditWebhookDialog({
   const handleEventToggle = (event: string, checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      events: checked 
+      subscriptions: checked
         ? [...prev.subscriptions, event]
         : prev.subscriptions.filter(e => e !== event)
     }))
@@ -103,7 +103,7 @@ export function EditWebhookDialog({
   const handleSelectAllInGroup = (groupEvents: string[], checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      events: checked
+      subscriptions: checked
         ? [...new Set([...prev.subscriptions, ...groupEvents])]
         : prev.subscriptions.filter(e => !groupEvents.includes(e))
     }))
