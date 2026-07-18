@@ -49,6 +49,8 @@ import { EditReleaseDialog } from './edit-release-dialog'
 import { DeleteReleaseDialog } from './delete-release-dialog'
 import { ReleaseArtifactsDialog } from './release-artifacts-dialog'
 
+const FALLBACK_CHANNELS = ['stable', 'rc', 'beta', 'alpha', 'dev']
+
 export function ReleaseManagement() {
   const [releases, setReleases] = useState<Release[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -56,6 +58,7 @@ export function ReleaseManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [productFilter, setProductFilter] = useState<string>('all')
   const [channelFilter, setChannelFilter] = useState<string>('all')
+  const [channels, setChannels] = useState<string[]>(FALLBACK_CHANNELS)
   const [editRelease, setEditRelease] = useState<Release | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteRelease, setDeleteRelease] = useState<Release | null>(null)
@@ -89,6 +92,22 @@ export function ReleaseManagement() {
     loadReleases()
     loadProducts()
   }, [loadReleases, loadProducts])
+
+  // Known channels, so the filter reflects what has really been published
+  // rather than a hardcoded guess. Falls back if the call fails or the
+  // account has no releases yet (same pattern as release-artifacts-dialog's
+  // platforms/arches).
+  useEffect(() => {
+    (async () => {
+      try {
+        const response = await api.releaseMetadata.channels()
+        const keys = (response.data || []).map(c => c.attributes.key)
+        if (keys.length) setChannels(keys)
+      } catch {
+        // Keep the fallback — this is a convenience, not a requirement.
+      }
+    })()
+  }, [api.releaseMetadata])
 
   const productName = (release: Release): string => {
     const rel = release.relationships?.product?.data
@@ -269,11 +288,11 @@ export function ReleaseManagement() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Channels</SelectItem>
-            <SelectItem value="stable">Stable</SelectItem>
-            <SelectItem value="rc">RC</SelectItem>
-            <SelectItem value="beta">Beta</SelectItem>
-            <SelectItem value="alpha">Alpha</SelectItem>
-            <SelectItem value="dev">Dev</SelectItem>
+            {channels.map(channel => (
+              <SelectItem key={channel} value={channel} className="capitalize">
+                {channel}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
