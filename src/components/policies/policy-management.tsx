@@ -45,6 +45,7 @@ import { toast } from 'sonner'
 import { handleLoadError } from '@/lib/utils/error-handling'
 import { CreatePolicyDialog } from './create-policy-dialog'
 import { DeletePolicyDialog } from './delete-policy-dialog'
+import { EditPolicyDialog } from './edit-policy-dialog'
 
 export function PolicyManagement() {
   const [policies, setPolicies] = useState<Policy[]>([])
@@ -53,6 +54,8 @@ export function PolicyManagement() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [policyToEdit, setPolicyToEdit] = useState<Policy | null>(null)
   const api = getKeygenApi()
 
   const loadPolicies = useCallback(async () => {
@@ -102,6 +105,11 @@ export function PolicyManagement() {
   const handleDeletePolicy = (policy: Policy) => {
     setPolicyToDelete(policy)
     setDeleteDialogOpen(true)
+  }
+
+  const handleEditPolicy = (policy: Policy) => {
+    setPolicyToEdit(policy)
+    setEditDialogOpen(true)
   }
 
   const copyId = (id: string) => {
@@ -303,7 +311,7 @@ export function PolicyManagement() {
                           Copy ID
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditPolicy(policy)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit Policy
                         </DropdownMenuItem>
@@ -332,6 +340,16 @@ export function PolicyManagement() {
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
           onPolicyDeleted={loadPolicies}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {policyToEdit && (
+        <EditPolicyDialog
+          policy={policyToEdit}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onPolicyUpdated={loadPolicies}
         />
       )}
     </div>
