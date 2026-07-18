@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Machine } from '@/lib/types/keygen'
+import { Machine, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -42,18 +42,24 @@ import {
   Copy,
   Cpu,
   Eye,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDateTime } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { ActivateMachineDialog } from './activate-machine-dialog'
 import { MachineDetailsDialog } from './machine-details-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function MachineManagement() {
-  const [machines, setMachines] = useState<Machine[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const api = getKeygenApi()
@@ -63,38 +69,85 @@ export function MachineManagement() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null)
 
-  const loadMachines = useCallback(async () => {
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  // Server-side heartbeat scope only recognizes ALIVE/DEAD (verified against
+  // Machine#with_status in keygen-api) — there is no server-side "not
+  // started" scope, so that option was dropped from the filter rather than
+  // silently returning zero rows the way the old client-side-only version did.
+  const fetchMachines = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Machine>> => {
     try {
-      setLoading(true)
-      const response = await api.machines.list({
-        limit: 50,
-        ...(statusFilter !== 'all' && { status: statusFilter })
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        const query: Record<string, string> = { name: trimmed, fingerprint: trimmed }
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(trimmed)) query.id = trimmed
+        return await api.search.search<Machine>({
+          type: 'machines',
+          query,
+          op: 'OR',
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.machines.list({
+        page: { size: pageSize, number: page },
+        ...(statusFilter === 'active' && { status: 'ALIVE' }),
+        ...(statusFilter === 'inactive' && { status: 'DEAD' }),
       })
-      setMachines(response.data || [])
     } catch (error: unknown) {
       handleLoadError(error, 'machines')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.machines, statusFilter])
+  }, [api.machines, api.search, statusFilter, debouncedSearch])
+
+  const {
+    data: machines,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadMachines,
+  } = usePaginatedList<Machine>({
+    fetcher: fetchMachines,
+    resetOn: [statusFilter, debouncedSearch],
+  })
+
+  const clearSearch = () => {
+    setSearchTerm('')
+    searchInputRef.current?.focus()
+  }
+
+  // Account-wide alive/dead counts for the stats cards — the server has no
+  // scope for "not started" (it folds into alive/dead depending on the
+  // heartbeat grace window), so that card stays scoped to the current page.
+  const [accountStats, setAccountStats] = useState({ alive: 0, dead: 0, loading: true })
+
+  const loadAccountStats = useCallback(async () => {
+    try {
+      setAccountStats(prev => ({ ...prev, loading: true }))
+      const [aliveResponse, deadResponse] = await Promise.all([
+        api.machines.list({ limit: 1, status: 'ALIVE' }),
+        api.machines.list({ limit: 1, status: 'DEAD' }),
+      ])
+      setAccountStats({
+        alive: aliveResponse.meta?.count ?? 0,
+        dead: deadResponse.meta?.count ?? 0,
+        loading: false,
+      })
+    } catch {
+      setAccountStats(prev => ({ ...prev, loading: false }))
+    }
+  }, [api.machines])
 
   useEffect(() => {
-    loadMachines()
-  }, [loadMachines])
+    loadAccountStats()
+  }, [loadAccountStats])
 
-  const filteredMachines = machines.filter(machine => {
-    const matchesSearch = !searchTerm || 
-      machine.attributes.fingerprint?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.attributes.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.attributes.ip?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && machine.attributes.heartbeatStatus === 'alive') ||
-      (statusFilter === 'inactive' && machine.attributes.heartbeatStatus === 'dead') ||
-      (statusFilter === 'not-started' && machine.attributes.heartbeatStatus === 'not-started')
-    
-    return matchesSearch && matchesStatus
-  })
+  const notStartedOnPage = machines.filter(m => m.attributes.heartbeatStatus === 'not-started').length
 
   const getHeartbeatTone = (heartbeatStatus: string): StatusTone => {
     switch (heartbeatStatus) {
@@ -113,6 +166,10 @@ export function MachineManagement() {
     }
   }
 
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([loadMachines(), loadAccountStats()])
+  }, [loadMachines, loadAccountStats])
+
   const handleDeleteMachine = (machine: Machine) => {
     setPendingMachine(machine)
     setConfirmDeleteOpen(true)
@@ -126,7 +183,7 @@ export function MachineManagement() {
   const handlePingMachine = async (machine: Machine) => {
     try {
       await api.machines.ping(machine.id)
-      await loadMachines()
+      await handleRefresh()
       toast.success('Heartbeat ping sent')
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'Machine', { customMessage: 'Failed to ping machine' })
@@ -138,7 +195,7 @@ export function MachineManagement() {
     setConfirmLoading(true)
     try {
       await api.machines.deactivate(pendingMachine.id)
-      await loadMachines()
+      await handleRefresh()
       toast.success('Machine deleted successfully')
       setConfirmDeleteOpen(false)
       setPendingMachine(null)
@@ -171,7 +228,7 @@ export function MachineManagement() {
             Monitor and manage licensed machines
           </p>
         </div>
-        <ActivateMachineDialog onMachineActivated={loadMachines} />
+        <ActivateMachineDialog onMachineActivated={handleRefresh} />
       </div>
 
       {/* Stats Cards */}
@@ -182,7 +239,7 @@ export function MachineManagement() {
             <Monitor className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{machines.length}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground">
               Registered machines
             </p>
@@ -194,9 +251,7 @@ export function MachineManagement() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {machines.filter(m => m.attributes.heartbeatStatus === 'alive').length}
-            </div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.alive}</div>
             <p className="text-xs text-muted-foreground">
               Currently online
             </p>
@@ -208,9 +263,7 @@ export function MachineManagement() {
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {machines.filter(m => m.attributes.heartbeatStatus === 'dead').length}
-            </div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.dead}</div>
             <p className="text-xs text-muted-foreground">
               Offline machines
             </p>
@@ -218,13 +271,11 @@ export function MachineManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Not Started</CardTitle>
+            <CardTitle className="text-sm font-medium">Not Started (this page)</CardTitle>
             <Cpu className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {machines.filter(m => m.attributes.heartbeatStatus === 'not-started').length}
-            </div>
+            <div className="text-2xl font-bold">{notStartedOnPage}</div>
             <p className="text-xs text-muted-foreground">
               Never activated
             </p>
@@ -234,16 +285,25 @@ export function MachineManagement() {
 
       {/* Filters and Search */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="basis-full sm:basis-auto flex-1 sm:max-w-sm">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search machines..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+        <div className="relative basis-full sm:basis-auto flex-1 sm:max-w-sm">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Search by fingerprint or name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 pr-8"
+          />
+          {searchTerm && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSearch}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="min-w-0 flex-1 sm:w-[150px] sm:flex-none">
@@ -254,7 +314,6 @@ export function MachineManagement() {
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="not-started">Not Started</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -268,26 +327,24 @@ export function MachineManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-sm text-muted-foreground">Loading machines...</div>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fingerprint</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>IP Address</TableHead>
-                  <TableHead>Hostname</TableHead>
-                  <TableHead>Last Heartbeat</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMachines.map((machine) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fingerprint</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>IP Address</TableHead>
+                <TableHead>Hostname</TableHead>
+                <TableHead>Last Heartbeat</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="w-[70px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={8} />
+              ) : machines.length > 0 ? (
+                machines.map((machine) => (
                   <TableRow key={machine.id}>
                     <TableCell>
                       <div className="flex items-center space-x-2">
@@ -367,24 +424,31 @@ export function MachineManagement() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          
-          {!loading && filteredMachines.length === 0 && (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <Monitor className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <div className="text-sm font-medium">No machines found</div>
-                <div className="text-xs text-muted-foreground">
-                  {searchTerm || statusFilter !== 'all' 
-                    ? 'Try adjusting your search or filters'
-                    : 'Machines will appear here when licenses are activated'
+                ))
+              ) : (
+                <EmptyState
+                  icon={Monitor}
+                  colSpan={8}
+                  title="No machines found"
+                  description={
+                    searchTerm || statusFilter !== 'all'
+                      ? 'Try adjusting your search or filters'
+                      : 'Machines will appear here when licenses are activated'
                   }
-                </div>
-              </div>
-            </div>
+                />
+              )}
+            </TableBody>
+          </Table>
+
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
@@ -403,7 +467,7 @@ export function MachineManagement() {
           machine={selectedMachine}
           open={detailsDialogOpen}
           onOpenChange={setDetailsDialogOpen}
-          onMachineUpdated={loadMachines}
+          onMachineUpdated={handleRefresh}
         />
       )}
     </div>
