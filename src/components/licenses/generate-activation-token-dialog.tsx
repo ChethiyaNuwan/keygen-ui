@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,14 +13,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Copy, KeyRound, ShieldAlert } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
 import { License } from '@/lib/types/keygen'
 import { toast } from 'sonner'
 import { handleCrudError } from '@/lib/utils/error-handling'
+
+function isValidPositiveIntOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  return /^\d+$/.test(value.trim())
+}
+
+const tokenSchema = z.object({
+  ttl: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number of seconds'),
+  name: z.string(),
+  maxActivations: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+})
+
+type TokenFormValues = z.infer<typeof tokenSchema>
+
+const defaultValues: TokenFormValues = {
+  ttl: '3600',
+  name: '',
+  maxActivations: '',
+}
 
 interface GenerateActivationTokenDialogProps {
   license: License
@@ -27,16 +56,15 @@ interface GenerateActivationTokenDialogProps {
 
 export function GenerateActivationTokenDialog({ license, open, onOpenChange }: GenerateActivationTokenDialogProps) {
   const api = getKeygenApi()
-  const [ttl, setTtl] = useState('3600')
-  const [name, setName] = useState('')
-  const [maxActivations, setMaxActivations] = useState('')
-  const [generating, setGenerating] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
 
+  const form = useForm<TokenFormValues>({
+    resolver: zodResolver(tokenSchema),
+    defaultValues,
+  })
+
   const reset = () => {
-    setTtl('3600')
-    setName('')
-    setMaxActivations('')
+    form.reset(defaultValues)
     setSecret(null)
   }
 
@@ -45,13 +73,12 @@ export function GenerateActivationTokenDialog({ license, open, onOpenChange }: G
     onOpenChange(next)
   }
 
-  const handleGenerate = async () => {
+  const onSubmit = async (values: TokenFormValues) => {
     try {
-      setGenerating(true)
       const response = await api.licenses.generateActivationToken(license.id, {
-        ttl: ttl.trim() ? parseInt(ttl, 10) : undefined,
-        name: name.trim() || undefined,
-        maxActivations: maxActivations.trim() ? parseInt(maxActivations, 10) : undefined,
+        ttl: values.ttl.trim() ? parseInt(values.ttl, 10) : undefined,
+        name: values.name.trim() || undefined,
+        maxActivations: values.maxActivations.trim() ? parseInt(values.maxActivations, 10) : undefined,
       })
       const token = response.data?.attributes.token
       if (token) {
@@ -61,8 +88,6 @@ export function GenerateActivationTokenDialog({ license, open, onOpenChange }: G
       }
     } catch (error: unknown) {
       handleCrudError(error, 'create', 'Activation token', { customMessage: 'Failed to generate activation token' })
-    } finally {
-      setGenerating(false)
     }
   }
 
@@ -71,6 +96,8 @@ export function GenerateActivationTokenDialog({ license, open, onOpenChange }: G
     navigator.clipboard.writeText(secret)
     toast.success('Token copied to clipboard')
   }
+
+  const generating = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -87,75 +114,83 @@ export function GenerateActivationTokenDialog({ license, open, onOpenChange }: G
         </DialogHeader>
 
         {secret ? (
-          <Alert>
-            <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Copy this token now</AlertTitle>
-            <AlertDescription>
-              <div className="space-y-2">
-                <p className="text-xs">It will not be shown again.</p>
-                <div className="flex items-center gap-2">
-                  <code className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1 font-mono text-xs">
-                    {secret}
-                  </code>
-                  <Button size="sm" variant="outline" onClick={copySecret}>
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
+          <>
+            <Alert>
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Copy this token now</AlertTitle>
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="text-xs">It will not be shown again.</p>
+                  <div className="flex items-center gap-2">
+                    <code className="bg-muted min-w-0 flex-1 truncate rounded px-2 py-1 font-mono text-xs">
+                      {secret}
+                    </code>
+                    <Button size="sm" variant="outline" onClick={copySecret}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </AlertDescription>
-          </Alert>
+              </AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button onClick={() => handleOpenChange(false)}>Close</Button>
+            </DialogFooter>
+          </>
         ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="token-ttl">TTL (seconds)</Label>
-                <Input
-                  id="token-ttl"
-                  type="number"
-                  value={ttl}
-                  onChange={(e) => setTtl(e.target.value)}
-                  disabled={generating}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="ttl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>TTL (seconds)</FormLabel>
+                      <FormControl>
+                        <Input type="number" disabled={generating} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxActivations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Activations</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="Unlimited" disabled={generating} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="token-max-activations">Max Activations</Label>
-                <Input
-                  id="token-max-activations"
-                  type="number"
-                  placeholder="Unlimited"
-                  value={maxActivations}
-                  onChange={(e) => setMaxActivations(e.target.value)}
-                  disabled={generating}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="token-name">Name (optional)</Label>
-              <Input
-                id="token-name"
-                placeholder="e.g. Installer token"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={generating}
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name (optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Installer token" disabled={generating} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={generating}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={generating}>
+                  {generating ? 'Generating...' : 'Generate'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         )}
-
-        <DialogFooter>
-          {secret ? (
-            <Button onClick={() => handleOpenChange(false)}>Close</Button>
-          ) : (
-            <>
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={generating}>
-                Cancel
-              </Button>
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? 'Generating...' : 'Generate'}
-              </Button>
-            </>
-          )}
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

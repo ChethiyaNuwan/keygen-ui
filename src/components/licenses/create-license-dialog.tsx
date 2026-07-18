@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useForm, useFieldArray } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +14,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -33,36 +44,61 @@ import { Entitlement, Group, Policy, User } from '@/lib/types/keygen'
 import { handleFormError, handleLoadError } from '@/lib/utils/error-handling'
 import { toast } from 'sonner'
 
+const licenseSchema = z.object({
+  name: z.string(),
+  policyId: z.string().min(1, 'Please select a policy'),
+  userId: z.string(),
+  groupId: z.string(),
+  key: z.string(),
+  protected: z.boolean(),
+  permissions: z.string(),
+  expiry: z.date().optional(),
+  metadata: z.array(z.object({ key: z.string(), value: z.string() })),
+  selectedUsers: z.array(z.string()),
+  selectedEntitlements: z.array(z.string()),
+})
+
+type LicenseFormValues = z.infer<typeof licenseSchema>
+
+const defaultValues: LicenseFormValues = {
+  name: '',
+  policyId: '',
+  userId: '',
+  groupId: '',
+  key: '',
+  protected: true,
+  permissions: '',
+  expiry: undefined,
+  metadata: [],
+  selectedUsers: [],
+  selectedEntitlements: [],
+}
+
 interface CreateLicenseDialogProps {
   onLicenseCreated?: () => void
 }
 
 export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [policies, setPolicies] = useState<Policy[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [entitlements, setEntitlements] = useState<Entitlement[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const [formData, setFormData] = useState({
-    name: '',
-    policyId: '',
-    userId: '', // owner
-    groupId: '',
-    key: '',
-    protected: true,
-    permissions: '',
-    expiry: undefined as Date | undefined,
-    
-  })
-  const [metadata, setMetadata] = useState<{ key: string; value: string }[]>([])
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
-  const [selectedEntitlements, setSelectedEntitlements] = useState<string[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [entitlementSearch, setEntitlementSearch] = useState('')
 
   const api = getKeygenApi()
+
+  const form = useForm<LicenseFormValues>({
+    resolver: zodResolver(licenseSchema),
+    defaultValues,
+  })
+
+  const { fields: metadataFields, append: appendMetadata, remove: removeMetadata } = useFieldArray({
+    control: form.control,
+    name: 'metadata',
+  })
 
   const loadInitialData = useCallback(async () => {
     try {
@@ -90,46 +126,35 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
     }
   }, [open, loadInitialData])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.policyId) {
-      toast.error('Please select a policy')
-      return
-    }
-
+  const onSubmit = async (values: LicenseFormValues) => {
     try {
-      setLoading(true)
-      
       const createRes = await api.licenses.create({
-        policyId: formData.policyId,
-        userId: formData.userId === 'none' ? undefined : formData.userId || undefined,
-        groupId: formData.groupId === 'none' ? undefined : formData.groupId || undefined,
-        name: formData.name || undefined,
-        key: formData.key || undefined,
-        protected: formData.protected,
-        permissions: formData.permissions
-          ? formData.permissions.split(',').map((p) => p.trim()).filter(Boolean)
+        policyId: values.policyId,
+        userId: values.userId === 'none' ? undefined : values.userId || undefined,
+        groupId: values.groupId === 'none' ? undefined : values.groupId || undefined,
+        name: values.name || undefined,
+        key: values.key || undefined,
+        protected: values.protected,
+        permissions: values.permissions
+          ? values.permissions.split(',').map((p) => p.trim()).filter(Boolean)
           : undefined,
-        expiry: formData.expiry ? formData.expiry.toISOString() : undefined,
-        metadata: {
-          ...metadata.reduce((acc, kv) => {
-            if (kv.key) acc[kv.key] = kv.value
-            return acc
-          }, {} as Record<string, string>),
-        },
+        expiry: values.expiry ? values.expiry.toISOString() : undefined,
+        metadata: values.metadata.reduce((acc, kv) => {
+          if (kv.key) acc[kv.key] = kv.value
+          return acc
+        }, {} as Record<string, string>),
       })
 
       const createdId = createRes.data?.id
 
-      if (createdId && selectedEntitlements.length > 0) {
-        await api.licenses.attachEntitlements(createdId, selectedEntitlements)
+      if (createdId && values.selectedEntitlements.length > 0) {
+        await api.licenses.attachEntitlements(createdId, values.selectedEntitlements)
       }
 
-      if (createdId && selectedUsers.length > 0) {
+      if (createdId && values.selectedUsers.length > 0) {
         // Best-effort: attach users if supported
         try {
-          await api.licenses.attachUsers(createdId, selectedUsers)
+          await api.licenses.attachUsers(createdId, values.selectedUsers)
         } catch (err) {
           console.warn('Attaching users failed or unsupported:', err)
         }
@@ -137,26 +162,14 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
 
       toast.success('License created successfully')
       setOpen(false)
-      setFormData({
-        name: '',
-        policyId: '',
-        userId: '',
-        groupId: '',
-        key: '',
-        protected: true,
-        permissions: '',
-        expiry: undefined,
-      })
-      setMetadata([])
-      setSelectedUsers([])
-      setSelectedEntitlements([])
+      form.reset(defaultValues)
+      setUserSearch('')
+      setEntitlementSearch('')
       onLicenseCreated?.()
     } catch (error: unknown) {
       handleFormError(error, 'License', {
         customMessage: 'Failed to create license'
       })
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -166,6 +179,8 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
     const block = () => Array.from({ length: 5 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
     return [block(), block(), block(), block(), block()].join('-')
   }
+
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -188,377 +203,423 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
             <div className="text-sm text-muted-foreground">Loading policies and users...</div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Attributes */}
-            <div className="space-y-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Attributes</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="name">Name</Label>
-                    <span className="text-xs text-muted-foreground">Optional</span>
-                  </div>
-                  <Input
-                    id="name"
-                    placeholder="Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Attributes */}
+              <div className="space-y-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Attributes</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Name</FormLabel>
+                          <span className="text-xs text-muted-foreground">Optional</span>
+                        </div>
+                        <FormControl>
+                          <Input placeholder="Name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="key">Key</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="size-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>Manually defining a key is optional</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      id="key"
-                      placeholder="Key"
-                      value={formData.key}
-                      onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-                    />
-                    <Button type="button" variant="outline" size="icon" onClick={() => setFormData({ ...formData, key: randomKey() })} aria-label="Generate key">
-                      <RefreshCcw className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1">
-                    <Label>Expiry</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>Leave blank for no expiry</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-full justify-start text-left font-normal',
-                          !formData.expiry && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.expiry ? format(formData.expiry, 'PPP') : 'Never expires'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.expiry}
-                        onSelect={(date) => setFormData({ ...formData, expiry: date })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 mt-6">
-                    <Checkbox
-                      id="protected"
-                      checked={formData.protected}
-                      onCheckedChange={(v) => setFormData({ ...formData, protected: Boolean(v) })}
-                    />
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="protected">Protected</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="size-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>Write-protect this license</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="permissions">Permissions</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>Comma-separated (e.g., *, machines:read)</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Input
-                    id="permissions"
-                    placeholder="Enter permissions…"
-                    value={formData.permissions}
-                    onChange={(e) => setFormData({ ...formData, permissions: e.target.value })}
+                  <FormField
+                    control={form.control}
+                    name="key"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Key</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Manually defining a key is optional</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input placeholder="Key" {...field} />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => form.setValue('key', randomKey())}
+                            aria-label="Generate key"
+                          >
+                            <RefreshCcw className="size-4" />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="expiry"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Expiry</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Leave blank for no expiry</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                  'w-full justify-start text-left font-normal',
+                                  !field.value && 'text-muted-foreground'
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {field.value ? format(field.value, 'PPP') : 'Never expires'}
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="protected"
+                    render={({ field }) => (
+                      <FormItem className="space-y-2">
+                        <div className="flex items-center gap-2 mt-6">
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                          <div className="flex items-center gap-1">
+                            <Label className="font-normal">Protected</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="size-3.5 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>Write-protect this license</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="permissions"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Permissions</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Comma-separated (e.g., *, machines:read)</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <FormControl>
+                          <Input placeholder="Enter permissions…" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Metadata */}
-            <div className="space-y-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Metadata</div>
-              <div className="space-y-2">
-                {metadata.length === 0 && (
-                  <button
-                    type="button"
-                    className="text-sm text-primary hover:underline"
-                    onClick={() => setMetadata((m) => [...m, { key: '', value: '' }])}
-                  >
-                    + New Key/Value Pair
-                  </button>
-                )}
-                {metadata.length > 0 && (
-                  <div className="space-y-2">
-                    {metadata.map((kv, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                        <Input
-                          className="col-span-5"
-                          placeholder="Key"
-                          value={kv.key}
-                          onChange={(e) => {
-                            const next = [...metadata];
-                            next[idx] = { ...kv, key: e.target.value };
-                            setMetadata(next);
-                          }}
-                        />
-                        <Input
-                          className="col-span-6"
-                          placeholder="Value"
-                          value={kv.value}
-                          onChange={(e) => {
-                            const next = [...metadata];
-                            next[idx] = { ...kv, value: e.target.value };
-                            setMetadata(next);
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setMetadata((m) => m.filter((_, i) => i !== idx))}
-                          aria-label="Remove"
-                        >
-                          <X className="size-4" />
+              {/* Metadata */}
+              <div className="space-y-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Metadata</div>
+                <div className="space-y-2">
+                  {metadataFields.length === 0 && (
+                    <button
+                      type="button"
+                      className="text-sm text-primary hover:underline"
+                      onClick={() => appendMetadata({ key: '', value: '' })}
+                    >
+                      + New Key/Value Pair
+                    </button>
+                  )}
+                  {metadataFields.length > 0 && (
+                    <div className="space-y-2">
+                      {metadataFields.map((field, idx) => (
+                        <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
+                          <Input
+                            className="col-span-5"
+                            placeholder="Key"
+                            {...form.register(`metadata.${idx}.key`)}
+                          />
+                          <Input
+                            className="col-span-6"
+                            placeholder="Value"
+                            {...form.register(`metadata.${idx}.value`)}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeMetadata(idx)}
+                            aria-label="Remove"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <div>
+                        <Button type="button" variant="outline" onClick={() => appendMetadata({ key: '', value: '' })}>
+                          Add Pair
                         </Button>
                       </div>
-                    ))}
-                    <div>
-                      <Button type="button" variant="outline" onClick={() => setMetadata((m) => [...m, { key: '', value: '' }])}>Add Pair</Button>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Relationships */}
-            <div className="space-y-3">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Relationships</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1">
-                    <Label htmlFor="policy">Policy</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>Required</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <Select
-                    value={formData.policyId}
-                    onValueChange={(value) => setFormData({ ...formData, policyId: value })}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a policy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {policies.map((policy) => (
-                        <SelectItem key={policy.id} value={policy.id}>
-                          {policy.attributes.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="group">Group</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="size-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>Choosing a group is optional</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <Select
-                    value={formData.groupId}
-                    onValueChange={(value) => setFormData({ ...formData, groupId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select group" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No group</SelectItem>
-                      {groups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{String(g.attributes.name)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="owner">Owner</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="size-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>Choosing an owner is optional</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-                  <Select
-                    value={formData.userId}
-                    onValueChange={(value) => setFormData({ ...formData, userId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No owner</SelectItem>
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.attributes.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Users multi-select */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-1">
-                    <Label>Users</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>Search for users by ID or email…</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="rounded-md border">
-                    <div className="p-2 border-b">
-                      <Input
-                        placeholder="Search users…"
-                        value={userSearch}
-                        onChange={(e) => setUserSearch(e.target.value)}
-                      />
-                    </div>
-                    <ScrollArea className="h-40">
-                      <div className="p-2 space-y-2">
-                        {users
-                          .filter((u) => {
-                            const q = userSearch.toLowerCase();
-                            const email = String(u.attributes.email || '').toLowerCase();
-                            return !q || email.includes(q) || u.id.includes(q);
-                          })
-                          .map((u) => (
-                            <label key={u.id} className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={selectedUsers.includes(u.id)}
-                                onCheckedChange={(v) =>
-                                  setSelectedUsers((prev) =>
-                                    v ? [...prev, u.id] : prev.filter((id) => id !== u.id)
-                                  )
-                                }
-                              />
-                              <span>{u.attributes.email}</span>
-                            </label>
-                          ))}
-                        {users.length === 0 && (
-                          <div className="text-xs text-muted-foreground">No users found</div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </div>
-
-                {/* Entitlements multi-select */}
-                <div className="space-y-2 md:col-span-2">
-                  <div className="flex items-center gap-1">
-                    <Label>Entitlements</Label>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Entitlements will automatically be inherited from the policy (if any)
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="rounded-md border">
-                    <div className="p-2 border-b">
-                      <Input
-                        placeholder="Search entitlements…"
-                        value={entitlementSearch}
-                        onChange={(e) => setEntitlementSearch(e.target.value)}
-                      />
-                    </div>
-                    <ScrollArea className="h-40">
-                      <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {entitlements
-                          .filter((ent) => {
-                            const q = entitlementSearch.toLowerCase();
-                            const name = String(ent.attributes.name || '').toLowerCase();
-                            const code = String(ent.attributes.code || '').toLowerCase();
-                            return !q || name.includes(q) || code.includes(q) || ent.id.includes(q);
-                          })
-                          .map((ent) => (
-                            <label key={ent.id} className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={selectedEntitlements.includes(ent.id)}
-                                onCheckedChange={(v) =>
-                                  setSelectedEntitlements((prev) =>
-                                    v ? [...prev, ent.id] : prev.filter((id) => id !== ent.id)
-                                  )
-                                }
-                              />
-                              <span>
-                                {ent.attributes.name}
-                                <span className="text-muted-foreground"> · {ent.attributes.code}</span>
-                              </span>
-                            </label>
-                          ))}
-                        {entitlements.length === 0 && (
-                          <div className="text-xs text-muted-foreground">No entitlements found</div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Creating…' : 'Create License'}
-              </Button>
-            </DialogFooter>
-          </form>
+              {/* Relationships */}
+              <div className="space-y-3">
+                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Relationships</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="policyId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Policy</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Required</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a policy" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {policies.map((policy) => (
+                              <SelectItem key={policy.id} value={policy.id}>
+                                {policy.attributes.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="groupId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Group</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Choosing a group is optional</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select group" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No group</SelectItem>
+                            {groups.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>{String(g.attributes.name)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="userId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Owner</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Choosing an owner is optional</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select owner" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No owner</SelectItem>
+                            {users.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.attributes.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Users multi-select */}
+                  <FormField
+                    control={form.control}
+                    name="selectedUsers"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Users</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Search for users by ID or email…</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="rounded-md border">
+                          <div className="p-2 border-b">
+                            <Input
+                              placeholder="Search users…"
+                              value={userSearch}
+                              onChange={(e) => setUserSearch(e.target.value)}
+                            />
+                          </div>
+                          <ScrollArea className="h-40">
+                            <div className="p-2 space-y-2">
+                              {users
+                                .filter((u) => {
+                                  const q = userSearch.toLowerCase();
+                                  const email = String(u.attributes.email || '').toLowerCase();
+                                  return !q || email.includes(q) || u.id.includes(q);
+                                })
+                                .map((u) => (
+                                  <label key={u.id} className="flex items-center gap-2 text-sm">
+                                    <Checkbox
+                                      checked={field.value.includes(u.id)}
+                                      onCheckedChange={(v) =>
+                                        field.onChange(
+                                          v ? [...field.value, u.id] : field.value.filter((id) => id !== u.id)
+                                        )
+                                      }
+                                    />
+                                    <span>{u.attributes.email}</span>
+                                  </label>
+                                ))}
+                              {users.length === 0 && (
+                                <div className="text-xs text-muted-foreground">No users found</div>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Entitlements multi-select */}
+                  <FormField
+                    control={form.control}
+                    name="selectedEntitlements"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Entitlements</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Entitlements will automatically be inherited from the policy (if any)
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="rounded-md border">
+                          <div className="p-2 border-b">
+                            <Input
+                              placeholder="Search entitlements…"
+                              value={entitlementSearch}
+                              onChange={(e) => setEntitlementSearch(e.target.value)}
+                            />
+                          </div>
+                          <ScrollArea className="h-40">
+                            <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {entitlements
+                                .filter((ent) => {
+                                  const q = entitlementSearch.toLowerCase();
+                                  const name = String(ent.attributes.name || '').toLowerCase();
+                                  const code = String(ent.attributes.code || '').toLowerCase();
+                                  return !q || name.includes(q) || code.includes(q) || ent.id.includes(q);
+                                })
+                                .map((ent) => (
+                                  <label key={ent.id} className="flex items-center gap-2 text-sm">
+                                    <Checkbox
+                                      checked={field.value.includes(ent.id)}
+                                      onCheckedChange={(v) =>
+                                        field.onChange(
+                                          v ? [...field.value, ent.id] : field.value.filter((id) => id !== ent.id)
+                                        )
+                                      }
+                                    />
+                                    <span>
+                                      {ent.attributes.name}
+                                      <span className="text-muted-foreground"> · {ent.attributes.code}</span>
+                                    </span>
+                                  </label>
+                                ))}
+                              {entitlements.length === 0 && (
+                                <div className="text-xs text-muted-foreground">No entitlements found</div>
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Creating…' : 'Create License'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         )}
       </DialogContent>
     </Dialog>
