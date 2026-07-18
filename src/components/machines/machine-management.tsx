@@ -42,10 +42,12 @@ import {
   Key,
   Copy,
   Cpu,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { ActivateMachineDialog } from './activate-machine-dialog'
+import { MachineDetailsDialog } from './machine-details-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 export function MachineManagement() {
@@ -57,6 +59,8 @@ export function MachineManagement() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [pendingMachine, setPendingMachine] = useState<Machine | null>(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null)
 
   const loadMachines = useCallback(async () => {
     try {
@@ -122,6 +126,21 @@ export function MachineManagement() {
   const handleDeleteMachine = (machine: Machine) => {
     setPendingMachine(machine)
     setConfirmDeleteOpen(true)
+  }
+
+  const handleViewDetails = (machine: Machine) => {
+    setSelectedMachine(machine)
+    setDetailsDialogOpen(true)
+  }
+
+  const handlePingMachine = async (machine: Machine) => {
+    try {
+      await api.machines.ping(machine.id)
+      await loadMachines()
+      toast.success('Heartbeat ping sent')
+    } catch (error: unknown) {
+      handleCrudError(error, 'update', 'Machine', { customMessage: 'Failed to ping machine' })
+    }
   }
 
   const confirmDeleteMachine = async () => {
@@ -331,6 +350,14 @@ export function MachineManagement() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleViewDetails(machine)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePingMachine(machine)}>
+                            <Activity className="mr-2 h-4 w-4" />
+                            Ping
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => copyId(machine.id)}>
                             <Key className="mr-2 h-4 w-4" />
                             Copy Machine ID
@@ -340,7 +367,7 @@ export function MachineManagement() {
                             Copy Fingerprint
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => handleDeleteMachine(machine)}
                           >
@@ -382,6 +409,14 @@ export function MachineManagement() {
         loading={confirmLoading}
         onConfirm={confirmDeleteMachine}
       />
+      {selectedMachine && (
+        <MachineDetailsDialog
+          machine={selectedMachine}
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
+          onMachineUpdated={loadMachines}
+        />
+      )}
     </div>
   )
 }
