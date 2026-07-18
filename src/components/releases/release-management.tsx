@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Release, Product, ReleaseStatus } from '@/lib/types/keygen'
+import { Release, Product, ReleaseStatus, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,17 +46,21 @@ import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreateReleaseDialog } from './create-release-dialog'
 import { EditReleaseDialog } from './edit-release-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { ReleaseArtifactsDialog } from './release-artifacts-dialog'
 
 const FALLBACK_CHANNELS = ['stable', 'rc', 'beta', 'alpha', 'dev']
+const SEARCH_DEBOUNCE_MS = 300
 
 export function ReleaseManagement() {
-  const [releases, setReleases] = useState<Release[]>([])
   const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [productFilter, setProductFilter] = useState<string>('all')
   const [channelFilter, setChannelFilter] = useState<string>('all')
@@ -70,17 +74,52 @@ export function ReleaseManagement() {
   const [artifactsDialogOpen, setArtifactsDialogOpen] = useState(false)
   const api = getKeygenApi()
 
-  const loadReleases = useCallback(async () => {
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  // Unlike most of the other 3.1b migrations, ReleasesController genuinely
+  // registers has_scope(:product), has_scope(:channel), and
+  // has_scope(:status) — all real, all applied server-side — so product and
+  // channel stay as proper filters under real pagination instead of being
+  // dropped. There's no search_name scope on Release though (only search_id/
+  // search_version/search_tag/search_metadata/search_product), so free-text
+  // search matches version-or-tag instead of the old name-or-version-or-tag.
+  const fetchReleases = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Release>> => {
     try {
-      setLoading(true)
-      const response = await api.releases.list({ limit: 100 })
-      setReleases(response.data || [])
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        return await api.search.search<Release>({
+          type: 'releases',
+          query: { version: trimmed, tag: trimmed },
+          op: 'OR',
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.releases.list({
+        page: { size: pageSize, number: page },
+        ...(productFilter !== 'all' && { product: productFilter }),
+        ...(channelFilter !== 'all' && { channel: channelFilter as Release['attributes']['channel'] }),
+      })
     } catch (error: unknown) {
       handleLoadError(error, 'releases')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.releases])
+  }, [api.releases, api.search, productFilter, channelFilter, debouncedSearch])
+
+  const {
+    data: releases,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadReleases,
+  } = usePaginatedList<Release>({
+    fetcher: fetchReleases,
+    resetOn: [productFilter, channelFilter, debouncedSearch],
+  })
 
   const loadProducts = useCallback(async () => {
     try {
@@ -92,9 +131,8 @@ export function ReleaseManagement() {
   }, [api.products])
 
   useEffect(() => {
-    loadReleases()
     loadProducts()
-  }, [loadReleases, loadProducts])
+  }, [loadProducts])
 
   // Known channels, so the filter reflects what has really been published
   // rather than a hardcoded guess. Falls back if the call fails or the
@@ -112,26 +150,43 @@ export function ReleaseManagement() {
     })()
   }, [api.releaseMetadata])
 
+  // Account-wide status counts via the real `status` scope (with_status
+  // upcases internally, so no casing bug here — unlike machines/users).
+  const [statusStats, setStatusStats] = useState({ published: 0, draft: 0, yanked: 0, loading: true })
+
+  const loadStatusStats = useCallback(async () => {
+    try {
+      setStatusStats(prev => ({ ...prev, loading: true }))
+      const [publishedResponse, draftResponse, yankedResponse] = await Promise.all([
+        api.releases.list({ limit: 1, status: 'PUBLISHED' }),
+        api.releases.list({ limit: 1, status: 'DRAFT' }),
+        api.releases.list({ limit: 1, status: 'YANKED' }),
+      ])
+      setStatusStats({
+        published: publishedResponse.meta?.count ?? 0,
+        draft: draftResponse.meta?.count ?? 0,
+        yanked: yankedResponse.meta?.count ?? 0,
+        loading: false,
+      })
+    } catch {
+      setStatusStats(prev => ({ ...prev, loading: false }))
+    }
+  }, [api.releases])
+
+  useEffect(() => {
+    loadStatusStats()
+  }, [loadStatusStats])
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([loadReleases(), loadStatusStats()])
+  }, [loadReleases, loadStatusStats])
+
   const productName = (release: Release): string => {
     const rel = release.relationships?.product?.data
     const productId = rel && !Array.isArray(rel) ? rel.id : undefined
     const product = products.find(p => p.id === productId)
     return product?.attributes.name || 'Unknown'
   }
-
-  const filteredReleases = releases.filter(release => {
-    const matchesSearch = !searchTerm ||
-      release.attributes.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      release.attributes.version?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      release.attributes.tag?.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const rel = release.relationships?.product?.data
-    const releaseProductId = rel && !Array.isArray(rel) ? rel.id : undefined
-    const matchesProduct = productFilter === 'all' || releaseProductId === productFilter
-    const matchesChannel = channelFilter === 'all' || release.attributes.channel === channelFilter
-
-    return matchesSearch && matchesProduct && matchesChannel
-  })
 
   const getReleaseStatusTone = (status: ReleaseStatus): StatusTone => {
     switch (status) {
@@ -155,7 +210,7 @@ export function ReleaseManagement() {
     try {
       await api.releases.publish(release.id)
       toast.success(`Release ${release.attributes.version} published`)
-      loadReleases()
+      handleRefresh()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'release', { customMessage: 'Failed to publish release' })
     }
@@ -165,7 +220,7 @@ export function ReleaseManagement() {
     try {
       await api.releases.yank(release.id)
       toast.success(`Release ${release.attributes.version} yanked`)
-      loadReleases()
+      handleRefresh()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'release', { customMessage: 'Failed to yank release' })
     }
@@ -193,10 +248,10 @@ export function ReleaseManagement() {
       await api.releases.delete(deleteRelease.id)
       toast.success(`Release ${deleteRelease.attributes.version} deleted`)
       setDeleteDialogOpen(false)
-      await loadReleases()
+      await handleRefresh()
     } catch (error: unknown) {
       handleCrudError(error, 'delete', 'release', {
-        onNotFound: () => { setDeleteDialogOpen(false); loadReleases() },
+        onNotFound: () => { setDeleteDialogOpen(false); handleRefresh() },
       })
     } finally {
       setDeleting(false)
@@ -224,7 +279,7 @@ export function ReleaseManagement() {
             <Rocket className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{releases.length}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground">All channels</p>
           </CardContent>
         </Card>
@@ -234,9 +289,7 @@ export function ReleaseManagement() {
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {releases.filter(r => r.attributes.status === 'PUBLISHED').length}
-            </div>
+            <div className="text-2xl font-bold">{statusStats.loading ? '...' : statusStats.published}</div>
             <p className="text-xs text-muted-foreground">Available for download</p>
           </CardContent>
         </Card>
@@ -246,9 +299,7 @@ export function ReleaseManagement() {
             <Upload className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {releases.filter(r => r.attributes.status === 'DRAFT').length}
-            </div>
+            <div className="text-2xl font-bold">{statusStats.loading ? '...' : statusStats.draft}</div>
             <p className="text-xs text-muted-foreground">Not yet published</p>
           </CardContent>
         </Card>
@@ -258,9 +309,7 @@ export function ReleaseManagement() {
             <Ban className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {releases.filter(r => r.attributes.status === 'YANKED').length}
-            </div>
+            <div className="text-2xl font-bold">{statusStats.loading ? '...' : statusStats.yanked}</div>
             <p className="text-xs text-muted-foreground">Access revoked</p>
           </CardContent>
         </Card>
@@ -272,7 +321,7 @@ export function ReleaseManagement() {
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by version, name or tag..."
+              placeholder="Search by version or tag..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
@@ -318,25 +367,23 @@ export function ReleaseManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-sm text-muted-foreground">Loading releases...</div>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Version</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredReleases.map((release) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Version</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Channel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="w-[70px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={7} />
+              ) : releases.length > 0 ? (
+                releases.map((release) => (
                   <TableRow key={release.id}>
                     <TableCell>
                       <code className="px-2 py-1 bg-muted rounded text-xs font-mono">
@@ -405,24 +452,31 @@ export function ReleaseManagement() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-
-          {!loading && filteredReleases.length === 0 && (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <Rocket className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <div className="text-sm font-medium">No releases found</div>
-                <div className="text-xs text-muted-foreground">
-                  {searchTerm || productFilter !== 'all' || channelFilter !== 'all'
-                    ? 'Try adjusting your search or filters'
-                    : 'Get started by creating your first release'
+                ))
+              ) : (
+                <EmptyState
+                  icon={Rocket}
+                  colSpan={7}
+                  title="No releases found"
+                  description={
+                    searchTerm || productFilter !== 'all' || channelFilter !== 'all'
+                      ? 'Try adjusting your search or filters'
+                      : 'Get started by creating your first release'
                   }
-                </div>
-              </div>
-            </div>
+                />
+              )}
+            </TableBody>
+          </Table>
+
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
