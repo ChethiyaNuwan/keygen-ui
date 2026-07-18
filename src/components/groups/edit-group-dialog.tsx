@@ -1,14 +1,46 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { getKeygenApi } from '@/lib/api'
 import { Group } from '@/lib/types/keygen'
 import { handleCrudError } from '@/lib/utils/error-handling'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
+
+function isValidNonNegativeIntOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  return /^\d+$/.test(value.trim())
+}
+
+const groupSchema = z.object({
+  name: z.string().trim().min(1, 'Group name is required'),
+  maxLicenses: z.string().refine(isValidNonNegativeIntOrEmpty, 'Must be a whole number'),
+  maxMachines: z.string().refine(isValidNonNegativeIntOrEmpty, 'Must be a whole number'),
+  maxUsers: z.string().refine(isValidNonNegativeIntOrEmpty, 'Must be a whole number'),
+})
+
+type GroupFormValues = z.infer<typeof groupSchema>
+
+function groupToFormValues(group: Group): GroupFormValues {
+  return {
+    name: group.attributes.name,
+    maxLicenses: group.attributes.maxLicenses?.toString() || '',
+    maxMachines: group.attributes.maxMachines?.toString() || '',
+    maxUsers: group.attributes.maxUsers?.toString() || '',
+  }
+}
 
 interface EditGroupDialogProps {
   group: Group
@@ -23,38 +55,22 @@ export function EditGroupDialog({
   onOpenChange,
   onGroupUpdated
 }: EditGroupDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    maxLicenses: '',
-    maxMachines: '',
-    maxUsers: ''
-  })
-
   const api = getKeygenApi()
+
+  const form = useForm<GroupFormValues>({
+    resolver: zodResolver(groupSchema),
+    defaultValues: groupToFormValues(group),
+  })
 
   // Initialize form data when group changes
   useEffect(() => {
     if (group) {
-      setFormData({
-        name: group.attributes.name,
-        maxLicenses: group.attributes.maxLicenses?.toString() || '',
-        maxMachines: group.attributes.maxMachines?.toString() || '',
-        maxUsers: group.attributes.maxUsers?.toString() || ''
-      })
+      form.reset(groupToFormValues(group))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim()) {
-      toast.error('Group name is required')
-      return
-    }
-
-    setLoading(true)
-    
+  const onSubmit = async (values: GroupFormValues) => {
     try {
       const updates: {
         name: string;
@@ -62,18 +78,18 @@ export function EditGroupDialog({
         maxMachines?: number;
         maxUsers?: number;
       } = {
-        name: formData.name.trim()
+        name: values.name
       }
 
       // Add optional limits - use undefined for unlimited (empty string)
-      updates.maxLicenses = formData.maxLicenses && parseInt(formData.maxLicenses) > 0 
-        ? parseInt(formData.maxLicenses) 
+      updates.maxLicenses = values.maxLicenses && parseInt(values.maxLicenses, 10) > 0
+        ? parseInt(values.maxLicenses, 10)
         : undefined
-      updates.maxMachines = formData.maxMachines && parseInt(formData.maxMachines) > 0 
-        ? parseInt(formData.maxMachines) 
+      updates.maxMachines = values.maxMachines && parseInt(values.maxMachines, 10) > 0
+        ? parseInt(values.maxMachines, 10)
         : undefined
-      updates.maxUsers = formData.maxUsers && parseInt(formData.maxUsers) > 0 
-        ? parseInt(formData.maxUsers) 
+      updates.maxUsers = values.maxUsers && parseInt(values.maxUsers, 10) > 0
+        ? parseInt(values.maxUsers, 10)
         : undefined
 
       await api.groups.update(group.id, updates)
@@ -82,96 +98,96 @@ export function EditGroupDialog({
       handleCrudError(error, 'update', 'Group', {
         onNotFound: () => onGroupUpdated()
       })
-    } finally {
-      setLoading(false)
     }
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
-            <DialogDescription>
-              Update the group configuration and limits.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Group Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter group name"
-                disabled={loading}
-                required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle>Edit Group</DialogTitle>
+              <DialogDescription>
+                Update the group configuration and limits.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Group Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter group name" disabled={loading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="maxLicenses"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max Licenses</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" placeholder="Leave empty for unlimited" disabled={loading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="maxMachines"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max Machines</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" placeholder="Leave empty for unlimited" disabled={loading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="maxUsers"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max Users</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" placeholder="Leave empty for unlimited" disabled={loading} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="maxLicenses">Max Licenses</Label>
-              <Input
-                id="maxLicenses"
-                type="number"
-                min="0"
-                value={formData.maxLicenses}
-                onChange={(e) => handleInputChange('maxLicenses', e.target.value)}
-                placeholder="Leave empty for unlimited"
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
                 disabled={loading}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="maxMachines">Max Machines</Label>
-              <Input
-                id="maxMachines"
-                type="number"
-                min="0"
-                value={formData.maxMachines}
-                onChange={(e) => handleInputChange('maxMachines', e.target.value)}
-                placeholder="Leave empty for unlimited"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="maxUsers">Max Users</Label>
-              <Input
-                id="maxUsers"
-                type="number"
-                min="0"
-                value={formData.maxUsers}
-                onChange={(e) => handleInputChange('maxUsers', e.target.value)}
-                placeholder="Leave empty for unlimited"
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Updating...' : 'Update Group'}
-            </Button>
-          </DialogFooter>
-        </form>
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Updating...' : 'Update Group'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
