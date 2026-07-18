@@ -75,7 +75,10 @@ export interface User extends KeygenResource {
     fullName?: string;
     email: string;
     role: 'admin' | 'developer' | 'sales-agent' | 'support-agent' | 'read-only' | 'user';
-    status: 'active' | 'inactive' | 'banned';
+    // Same bare-`attribute :status` pattern as License below —
+    // user_serializer.rb has no downcasing block, and User#status returns
+    // uppercase symbols (:ACTIVE/:INACTIVE/:BANNED).
+    status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
     banned?: boolean; // Legacy property for backward compatibility
     lastSignedInAt?: string;
     created: string;
