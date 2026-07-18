@@ -1,42 +1,142 @@
 import { KeygenClient } from '../client';
 import { Webhook, WebhookFilters, WebhookEventRecord, KeygenResponse, KeygenListResponse } from '../../types/keygen';
 
-// Common webhook events in Keygen
+// Every event Keygen CE can broadcast, extracted from BroadcastEventService.call
+// sites in the keygen-api source (github.com/keygen-sh/keygen-api) — the
+// hardcoded ~34-event list here previously covered barely a third of what the
+// account can actually emit, so most webhook subscriptions were unavailable
+// from the UI. Grouped by resource; alphabetical within each group.
 export const WEBHOOK_EVENTS = [
+  // account
   'account.updated',
+  'account.billing.updated',
+  'account.plan.updated',
+  'account.settings.created',
+  'account.settings.deleted',
+  'account.settings.updated',
+  'account.subscription.canceled',
+  'account.subscription.paused',
+  'account.subscription.renewed',
+  'account.subscription.resumed',
+  // artifact
+  'artifact.created',
+  'artifact.deleted',
+  'artifact.downloaded',
+  'artifact.updated',
+  'artifact.upload.failed',
+  'artifact.upload.processing',
+  'artifact.upload.succeeded',
+  // component
+  'component.created',
+  'component.deleted',
+  'component.updated',
+  // entitlement
+  'entitlement.created',
+  'entitlement.deleted',
+  'entitlement.updated',
+  // environment (EE)
+  'environment.created',
+  'environment.deleted',
+  'environment.updated',
+  // group
+  'group.created',
+  'group.deleted',
+  'group.owners.attached',
+  'group.owners.detached',
+  'group.updated',
+  // key (pooled licence keys)
+  'key.created',
+  'key.deleted',
+  'key.updated',
+  // license
+  'license.checked-in',
+  'license.checked-out',
+  'license.check-in-overdue',
+  'license.check-in-required-soon',
   'license.created',
-  'license.updated',
   'license.deleted',
-  'license.suspended',
+  'license.entitlements.attached',
+  'license.entitlements.detached',
+  'license.expired',
+  'license.expiring-soon',
+  'license.group.updated',
+  'license.owner.updated',
+  'license.policy.updated',
   'license.reinstated',
   'license.renewed',
-  'license.expired',
+  'license.revoked',
+  'license.suspended',
+  'license.updated',
+  'license.usage.decremented',
+  'license.usage.incremented',
+  'license.usage.reset',
+  'license.user.updated',
+  'license.users.attached',
+  'license.users.detached',
+  // machine
+  'machine.checked-out',
   'machine.created',
-  'machine.updated',
   'machine.deleted',
-  'machine.heartbeat.ping',
+  'machine.group.updated',
   'machine.heartbeat.dead',
+  'machine.heartbeat.ping',
+  'machine.heartbeat.pong',
+  'machine.heartbeat.reset',
   'machine.heartbeat.resurrected',
-  'product.created',
-  'product.updated',
-  'product.deleted',
+  'machine.owner.updated',
+  'machine.proofs.generated',
+  'machine.updated',
+  // package (release packages, e.g. npm/pypi/oci)
+  'package.created',
+  'package.deleted',
+  'package.updated',
+  // policy
   'policy.created',
-  'policy.updated',
   'policy.deleted',
-  'user.created',
-  'user.updated',
-  'user.deleted',
-  'group.created',
-  'group.updated',
-  'group.deleted',
-  'entitlement.created',
-  'entitlement.updated',
-  'entitlement.deleted',
+  'policy.entitlements.attached',
+  'policy.entitlements.detached',
+  'policy.pool.popped',
+  'policy.updated',
+  // process
+  'process.created',
+  'process.deleted',
+  'process.heartbeat.dead',
+  'process.heartbeat.ping',
+  'process.heartbeat.pong',
+  'process.heartbeat.resurrected',
+  'process.updated',
+  // product
+  'product.created',
+  'product.deleted',
+  'product.updated',
+  // release
+  'release.constraints.attached',
+  'release.constraints.detached',
   'release.created',
-  'release.updated',
   'release.deleted',
+  'release.downloaded',
+  'release.package.updated',
   'release.published',
+  'release.updated',
+  /** Deprecated v1.0 endpoint (see PR notes) — the event can still fire from legacy clients. */
+  'release.upgraded',
+  'release.uploaded',
   'release.yanked',
+  // second factor
+  'second-factor.created',
+  'second-factor.deleted',
+  // token
+  'token.generated',
+  'token.regenerated',
+  'token.revoked',
+  // user
+  'user.banned',
+  'user.created',
+  'user.deleted',
+  'user.group.updated',
+  'user.password-reset',
+  'user.unbanned',
+  'user.updated',
 ] as const;
 
 export type WebhookEvent = typeof WEBHOOK_EVENTS[number];
