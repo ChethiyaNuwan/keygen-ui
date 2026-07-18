@@ -15,9 +15,9 @@ import { Plus, Search, MoreHorizontal, Webhook as WebhookIcon, Trash2, Edit, Eye
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { CreateWebhookDialog } from './create-webhook-dialog'
 import { EditWebhookDialog } from './edit-webhook-dialog'
-import { DeleteWebhookDialog } from './delete-webhook-dialog'
 import { WebhookDetailsDialog } from './webhook-details-dialog'
 
 export function WebhookManagement() {
@@ -27,6 +27,7 @@ export function WebhookManagement() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null)
   const [togglingWebhooks, setTogglingWebhooks] = useState<Set<string>>(new Set())
@@ -112,11 +113,22 @@ export function WebhookManagement() {
     toast.success('Webhook updated successfully')
   }
 
-  const handleWebhookDeleted = () => {
-    setDeleteDialogOpen(false)
-    setSelectedWebhook(null)
-    loadWebhooks()
-    toast.success('Webhook deleted successfully')
+  const confirmDeleteWebhook = async () => {
+    if (!selectedWebhook) return
+    try {
+      setDeleting(true)
+      await api.webhooks.delete(selectedWebhook.id)
+      toast.success('Webhook deleted successfully')
+      setDeleteDialogOpen(false)
+      setSelectedWebhook(null)
+      await loadWebhooks()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Webhook', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadWebhooks() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filteredWebhooks = webhooks.filter(webhook => 
@@ -307,11 +319,24 @@ export function WebhookManagement() {
             onOpenChange={setEditDialogOpen}
             onWebhookUpdated={handleWebhookUpdated}
           />
-          <DeleteWebhookDialog
-            webhook={selectedWebhook}
+          <ConfirmDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            onWebhookDeleted={handleWebhookDeleted}
+            title="Delete Webhook"
+            description={
+              <>
+                Deleting the webhook for{' '}
+                <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                  {selectedWebhook.attributes.url}
+                </code>{' '}
+                will permanently stop all event notifications to this endpoint. Any applications
+                depending on these webhooks will stop receiving updates.
+              </>
+            }
+            confirmLabel="Delete Webhook"
+            destructive
+            loading={deleting}
+            onConfirm={confirmDeleteWebhook}
           />
           <WebhookDetailsDialog
             webhook={selectedWebhook}

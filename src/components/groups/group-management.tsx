@@ -12,11 +12,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreHorizontal, Users, Trash2, Edit, Eye } from 'lucide-react'
 import { toast } from 'sonner'
-import { handleLoadError } from '@/lib/utils/error-handling'
+import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { CreateGroupDialog } from './create-group-dialog'
 import { EditGroupDialog } from './edit-group-dialog'
-import { DeleteGroupDialog } from './delete-group-dialog'
 import { GroupDetailsDialog } from './group-details-dialog'
 
 export function GroupManagement() {
@@ -26,6 +26,7 @@ export function GroupManagement() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   
@@ -74,11 +75,22 @@ export function GroupManagement() {
     toast.success('Group updated successfully')
   }
 
-  const handleGroupDeleted = () => {
-    setDeleteDialogOpen(false)
-    setSelectedGroup(null)
-    loadGroups()
-    toast.success('Group deleted successfully')
+  const confirmDeleteGroup = async () => {
+    if (!selectedGroup) return
+    try {
+      setDeleting(true)
+      await api.groups.delete(selectedGroup.id)
+      toast.success('Group deleted successfully')
+      setDeleteDialogOpen(false)
+      setSelectedGroup(null)
+      await loadGroups()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Group', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadGroups() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filteredGroups = groups.filter(group => 
@@ -239,11 +251,24 @@ export function GroupManagement() {
             onOpenChange={setEditDialogOpen}
             onGroupUpdated={handleGroupUpdated}
           />
-          <DeleteGroupDialog
-            group={selectedGroup}
+          <ConfirmDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            onGroupDeleted={handleGroupDeleted}
+            title="Delete Group"
+            description={
+              <>
+                Deleting{' '}
+                <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                  {selectedGroup.attributes.name}
+                </code>{' '}
+                will remove all user and license associations. Users and licenses themselves
+                will not be deleted, but they will no longer be part of this group.
+              </>
+            }
+            confirmLabel="Delete Group"
+            destructive
+            loading={deleting}
+            onConfirm={confirmDeleteGroup}
           />
           <GroupDetailsDialog
             group={selectedGroup}

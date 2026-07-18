@@ -44,11 +44,12 @@ import {
   KeyRound,
 } from 'lucide-react'
 // No direct toasts here; using centralized error handlers where needed
-import { handleLoadError } from '@/lib/utils/error-handling'
+import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { CreateProductDialog } from './create-product-dialog'
 import { EditProductDialog } from './edit-product-dialog'
-import { DeleteProductDialog } from './delete-product-dialog'
 import { ProductTokensDialog } from './product-tokens-dialog'
 
 export function ProductManagement() {
@@ -60,6 +61,7 @@ export function ProductManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [tokensProduct, setTokensProduct] = useState<Product | null>(null)
   const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const api = getKeygenApi()
@@ -112,6 +114,23 @@ export function ProductManagement() {
   const handleDeleteProduct = (product: Product) => {
     setDeleteProduct(product)
     setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteProduct) return
+    try {
+      setDeleting(true)
+      await api.products.delete(deleteProduct.id)
+      toast.success(`Product "${deleteProduct.attributes.name}" deleted successfully`)
+      setDeleteDialogOpen(false)
+      await loadProducts()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Product', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadProducts() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const openUrl = (url: string) => {
@@ -393,12 +412,26 @@ export function ProductManagement() {
         onOpenChange={setTokensDialogOpen}
       />
 
-      <DeleteProductDialog
-        product={deleteProduct}
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onProductDeleted={loadProducts}
-      />
+      {deleteProduct && (
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete Product"
+          description={
+            <>
+              This will permanently delete{' '}
+              <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                {deleteProduct.attributes.name}
+              </code>{' '}
+              and may affect related licenses and policies.
+            </>
+          }
+          confirmLabel="Delete Product"
+          destructive
+          loading={deleting}
+          onConfirm={confirmDeleteProduct}
+        />
+      )}
     </div>
   )
 }

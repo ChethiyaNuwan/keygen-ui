@@ -43,9 +43,9 @@ import {
   Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { handleLoadError } from '@/lib/utils/error-handling'
+import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { CreatePolicyDialog } from './create-policy-dialog'
-import { DeletePolicyDialog } from './delete-policy-dialog'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { EditPolicyDialog } from './edit-policy-dialog'
 import { PolicyDetailsDialog } from './policy-details-dialog'
 
@@ -56,6 +56,7 @@ export function PolicyManagement() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [policyToEdit, setPolicyToEdit] = useState<Policy | null>(null)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
@@ -109,6 +110,23 @@ export function PolicyManagement() {
   const handleDeletePolicy = (policy: Policy) => {
     setPolicyToDelete(policy)
     setDeleteDialogOpen(true)
+  }
+
+  const confirmDeletePolicy = async () => {
+    if (!policyToDelete) return
+    try {
+      setDeleting(true)
+      await api.policies.delete(policyToDelete.id)
+      toast.success('Policy deleted successfully')
+      setDeleteDialogOpen(false)
+      await loadPolicies()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Policy', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadPolicies() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleEditPolicy = (policy: Policy) => {
@@ -348,11 +366,24 @@ export function PolicyManagement() {
 
       {/* Delete Dialog */}
       {policyToDelete && (
-        <DeletePolicyDialog
-          policy={policyToDelete}
+        <ConfirmDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
-          onPolicyDeleted={loadPolicies}
+          title="Delete Policy"
+          description={
+            <>
+              This will permanently remove{' '}
+              <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                {policyToDelete.attributes.name}
+              </code>{' '}
+              and may affect any licenses that depend on it. Make sure no active licenses are
+              using this policy before deletion.
+            </>
+          }
+          confirmLabel="Delete Policy"
+          destructive
+          loading={deleting}
+          onConfirm={confirmDeletePolicy}
         />
       )}
 

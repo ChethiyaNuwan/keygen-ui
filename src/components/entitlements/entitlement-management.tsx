@@ -12,11 +12,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreHorizontal, Shield, Trash2, Edit, Eye, Code } from 'lucide-react'
 import { toast } from 'sonner'
-import { handleLoadError } from '@/lib/utils/error-handling'
+import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { CreateEntitlementDialog } from './create-entitlement-dialog'
 import { EditEntitlementDialog } from './edit-entitlement-dialog'
-import { DeleteEntitlementDialog } from './delete-entitlement-dialog'
 import { EntitlementDetailsDialog } from './entitlement-details-dialog'
 
 export function EntitlementManagement() {
@@ -26,6 +26,7 @@ export function EntitlementManagement() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedEntitlement, setSelectedEntitlement] = useState<Entitlement | null>(null)
   
@@ -74,11 +75,22 @@ export function EntitlementManagement() {
     toast.success('Entitlement updated successfully')
   }
 
-  const handleEntitlementDeleted = () => {
-    setDeleteDialogOpen(false)
-    setSelectedEntitlement(null)
-    loadEntitlements()
-    toast.success('Entitlement deleted successfully')
+  const confirmDeleteEntitlement = async () => {
+    if (!selectedEntitlement) return
+    try {
+      setDeleting(true)
+      await api.entitlements.delete(selectedEntitlement.id)
+      toast.success('Entitlement deleted successfully')
+      setDeleteDialogOpen(false)
+      setSelectedEntitlement(null)
+      await loadEntitlements()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'Entitlement', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadEntitlements() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filteredEntitlements = entitlements.filter(entitlement => 
@@ -224,11 +236,24 @@ export function EntitlementManagement() {
             onOpenChange={setEditDialogOpen}
             onEntitlementUpdated={handleEntitlementUpdated}
           />
-          <DeleteEntitlementDialog
-            entitlement={selectedEntitlement}
+          <ConfirmDialog
             open={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}
-            onEntitlementDeleted={handleEntitlementDeleted}
+            title="Delete Entitlement"
+            description={
+              <>
+                Deleting{' '}
+                <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                  {selectedEntitlement.attributes.name}
+                </code>{' '}
+                will remove it from all associated licenses. This may affect your users&apos;
+                access to features controlled by this entitlement.
+              </>
+            }
+            confirmLabel="Delete Entitlement"
+            destructive
+            loading={deleting}
+            onConfirm={confirmDeleteEntitlement}
           />
           <EntitlementDetailsDialog
             entitlement={selectedEntitlement}

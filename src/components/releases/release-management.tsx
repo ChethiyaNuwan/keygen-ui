@@ -48,7 +48,7 @@ import { formatDate } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { CreateReleaseDialog } from './create-release-dialog'
 import { EditReleaseDialog } from './edit-release-dialog'
-import { DeleteReleaseDialog } from './delete-release-dialog'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { ReleaseArtifactsDialog } from './release-artifacts-dialog'
 
 const FALLBACK_CHANNELS = ['stable', 'rc', 'beta', 'alpha', 'dev']
@@ -65,6 +65,7 @@ export function ReleaseManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteRelease, setDeleteRelease] = useState<Release | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [artifactsRelease, setArtifactsRelease] = useState<Release | null>(null)
   const [artifactsDialogOpen, setArtifactsDialogOpen] = useState(false)
   const api = getKeygenApi()
@@ -183,6 +184,23 @@ export function ReleaseManagement() {
   const handleDelete = (release: Release) => {
     setDeleteRelease(release)
     setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteRelease = async () => {
+    if (!deleteRelease) return
+    try {
+      setDeleting(true)
+      await api.releases.delete(deleteRelease.id)
+      toast.success(`Release ${deleteRelease.attributes.version} deleted`)
+      setDeleteDialogOpen(false)
+      await loadReleases()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'release', {
+        onNotFound: () => { setDeleteDialogOpen(false); loadReleases() },
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -416,12 +434,27 @@ export function ReleaseManagement() {
         onReleaseUpdated={loadReleases}
       />
 
-      <DeleteReleaseDialog
-        release={deleteRelease}
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onReleaseDeleted={loadReleases}
-      />
+      {deleteRelease && (
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete Release"
+          description={
+            <>
+              This permanently deletes release{' '}
+              <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                {deleteRelease.attributes.version}
+              </code>{' '}
+              and all of its artifacts. Licensed clients will no longer be able to download this
+              version. If you only want to revoke access, yank the release instead.
+            </>
+          }
+          confirmLabel="Delete Release"
+          destructive
+          loading={deleting}
+          onConfirm={confirmDeleteRelease}
+        />
+      )}
 
       <ReleaseArtifactsDialog
         release={artifactsRelease}

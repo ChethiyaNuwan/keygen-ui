@@ -59,7 +59,7 @@ import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { CreateLicenseDialog } from './create-license-dialog'
-import { DeleteLicenseDialog } from './delete-license-dialog'
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { EditLicenseDialog } from './edit-license-dialog'
 import { LicenseDetailsDialog } from './license-details-dialog'
 import { GenerateActivationTokenDialog } from './generate-activation-token-dialog'
@@ -83,6 +83,7 @@ export function LicenseManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false)
@@ -298,6 +299,24 @@ export function LicenseManagement() {
   const handleDeleteLicense = (license: License) => {
     setSelectedLicense(license)
     setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteLicense = async () => {
+    if (!selectedLicense) return
+    try {
+      setDeleting(true)
+      await api.licenses.delete(selectedLicense.id)
+      toast.success('License deleted successfully')
+      setDeleteDialogOpen(false)
+      await handleRefresh()
+    } catch (error: unknown) {
+      handleCrudError(error, 'delete', 'License', {
+        onNotFound: () => { setDeleteDialogOpen(false); handleRefresh() },
+        customMessage: 'Cannot delete license - it may be in use or have active machines',
+      })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleEditLicense = (license: License) => {
@@ -735,11 +754,24 @@ export function LicenseManagement() {
 
       {/* Delete Dialog */}
       {selectedLicense && (
-        <DeleteLicenseDialog
-          license={selectedLicense}
+        <ConfirmDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
-          onLicenseDeleted={handleRefresh}
+          title="Delete License"
+          description={
+            <>
+              This will permanently remove{' '}
+              <code className="px-1 py-0.5 bg-muted rounded text-xs font-mono">
+                {selectedLicense.attributes.name || selectedLicense.attributes.key.substring(0, 20) + '...'}
+              </code>{' '}
+              and automatically delete all associated machines. Users will lose access
+              immediately and cannot reactivate using this license key.
+            </>
+          }
+          confirmLabel="Delete License"
+          destructive
+          loading={deleting}
+          onConfirm={confirmDeleteLicense}
         />
       )}
 
