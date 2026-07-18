@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,8 +14,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -26,37 +36,59 @@ import { License } from '@/lib/types/keygen'
 import { handleFormError, handleLoadError } from '@/lib/utils/error-handling'
 import { toast } from 'sonner'
 
+function isValidPositiveIntOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  return /^\d+$/.test(value.trim())
+}
+
+const machineSchema = z.object({
+  fingerprint: z.string().trim().min(1, 'Machine fingerprint is required'),
+  licenseId: z.string().min(1, 'Please select a license'),
+  name: z.string(),
+  platform: z.string(),
+  hostname: z.string(),
+  cores: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  ip: z.string(),
+})
+
+type MachineFormValues = z.infer<typeof machineSchema>
+
+const defaultValues: MachineFormValues = {
+  fingerprint: '',
+  licenseId: '',
+  name: '',
+  platform: '',
+  hostname: '',
+  cores: '',
+  ip: '',
+}
+
 interface ActivateMachineDialogProps {
   onMachineActivated?: () => void
 }
 
 export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDialogProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [licenses, setLicenses] = useState<License[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const [formData, setFormData] = useState({
-    fingerprint: '',
-    licenseId: '',
-    name: '',
-    platform: '',
-    hostname: '',
-    cores: '',
-    ip: ''
-  })
 
   const api = getKeygenApi()
+
+  const form = useForm<MachineFormValues>({
+    resolver: zodResolver(machineSchema),
+    defaultValues,
+  })
 
   const loadInitialData = useCallback(async () => {
     try {
       setLoadingData(true)
       // Load active licenses for machine activation
-      const licensesResponse = await api.licenses.list({ 
+      const licensesResponse = await api.licenses.list({
         limit: 100,
         // Only get active licenses
       })
-      setLicenses(licensesResponse.data?.filter(license => 
-        license.attributes.status === 'active'
+      setLicenses(licensesResponse.data?.filter(license =>
+        license.attributes.status === 'ACTIVE'
       ) || [])
     } catch (error: unknown) {
       handleLoadError(error, 'licenses')
@@ -71,50 +103,28 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
     }
   }, [open, loadInitialData])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.fingerprint.trim()) {
-      toast.error('Machine fingerprint is required')
-      return
-    }
-    
-    if (!formData.licenseId) {
-      toast.error('Please select a license')
-      return
-    }
-
+  const onSubmit = async (values: MachineFormValues) => {
     try {
-      setLoading(true)
-      
       await api.machines.activate({
-        fingerprint: formData.fingerprint.trim(),
-        licenseId: formData.licenseId,
-        name: formData.name.trim() || undefined,
-        platform: formData.platform.trim() || undefined,
-        hostname: formData.hostname.trim() || undefined,
-        cores: formData.cores ? parseInt(formData.cores) : undefined,
-        ip: formData.ip.trim() || undefined
+        fingerprint: values.fingerprint,
+        licenseId: values.licenseId,
+        name: values.name.trim() || undefined,
+        platform: values.platform.trim() || undefined,
+        hostname: values.hostname.trim() || undefined,
+        cores: values.cores ? parseInt(values.cores, 10) : undefined,
+        ip: values.ip.trim() || undefined
       })
 
       toast.success('Machine activated successfully')
       setOpen(false)
-      setFormData({
-        fingerprint: '',
-        licenseId: '',
-        name: '',
-        platform: '',
-        hostname: '',
-        cores: '',
-        ip: ''
-      })
+      form.reset(defaultValues)
       onMachineActivated?.()
     } catch (error: unknown) {
       handleFormError(error, 'Machine')
-    } finally {
-      setLoading(false)
     }
   }
+
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -137,109 +147,138 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
             <div className="text-sm text-muted-foreground">Loading licenses...</div>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="fingerprint">Machine Fingerprint *</Label>
-              <Input
-                id="fingerprint"
-                placeholder="e.g., 1A2B3C4D5E6F7G8H9I0J"
-                value={formData.fingerprint}
-                onChange={(e) => setFormData({ ...formData, fingerprint: e.target.value })}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique identifier for this machine (hardware-based fingerprint)
-              </p>
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="license">License *</Label>
-              <Select
-                value={formData.licenseId}
-                onValueChange={(value) => setFormData({ ...formData, licenseId: value })}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a license" />
-                </SelectTrigger>
-                <SelectContent>
-                  {licenses.map((license) => (
-                    <SelectItem key={license.id} value={license.id}>
-                      {license.attributes.name || license.attributes.key} 
-                      {license.attributes.maxUses && (
-                        <span className="text-muted-foreground ml-2">
-                          ({license.attributes.uses}/{license.attributes.maxUses} uses)
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="fingerprint"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Machine Fingerprint *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., 1A2B3C4D5E6F7G8H9I0J" {...field} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Unique identifier for this machine (hardware-based fingerprint)
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="licenseId"
+                  render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>License *</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a license" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {licenses.map((license) => (
+                            <SelectItem key={license.id} value={license.id}>
+                              {license.attributes.name || license.attributes.key}
+                              {license.attributes.maxUses && (
+                                <span className="text-muted-foreground ml-2">
+                                  ({license.attributes.uses}/{license.attributes.maxUses} uses)
+                                </span>
+                              )}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Machine Name</Label>
-              <Input
-                id="name"
-                placeholder="e.g., John's Workstation"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="platform">Platform</Label>
-              <Input
-                id="platform"
-                placeholder="e.g., Windows, macOS, Linux"
-                value={formData.platform}
-                onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Machine Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., John's Workstation" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="platform"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Platform</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Windows, macOS, Linux" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="hostname">Hostname</Label>
-              <Input
-                id="hostname"
-                placeholder="e.g., DESKTOP-ABC123"
-                value={formData.hostname}
-                onChange={(e) => setFormData({ ...formData, hostname: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cores">CPU Cores</Label>
-              <Input
-                id="cores"
-                type="number"
-                placeholder="e.g., 8"
-                value={formData.cores}
-                onChange={(e) => setFormData({ ...formData, cores: e.target.value })}
-              />
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="hostname"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hostname</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., DESKTOP-ABC123" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="cores"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CPU Cores</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="e.g., 8" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="ip">IP Address</Label>
-            <Input
-              id="ip"
-              placeholder="e.g., 192.168.1.100"
-              value={formData.ip}
-              onChange={(e) => setFormData({ ...formData, ip: e.target.value })}
-            />
-          </div>
+              <FormField
+                control={form.control}
+                name="ip"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>IP Address</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 192.168.1.100" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Activating...' : 'Activate Machine'}
-            </Button>
-          </DialogFooter>
-        </form>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Activating...' : 'Activate Machine'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         )}
       </DialogContent>
     </Dialog>
