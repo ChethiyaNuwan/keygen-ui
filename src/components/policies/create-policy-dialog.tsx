@@ -26,6 +26,7 @@ import { Plus } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Product } from '@/lib/types/keygen'
+import { PolicyMutableAttributes } from '@/lib/api/resources/policies'
 import { handleFormError, handleLoadError } from '@/lib/utils/error-handling'
 import { useEffect, useCallback } from 'react'
 
@@ -44,7 +45,6 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
     duration: '',
     strict: false,
     floating: false,
-    concurrent: false,
     protected: false,
     requireHeartbeat: false,
     heartbeatDuration: '3600',
@@ -115,7 +115,6 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
       // Add boolean flags if enabled
       if (formData.strict) policyData.strict = true
       if (formData.floating) policyData.floating = true
-      if (formData.concurrent) policyData.concurrent = true
       if (formData.protected) policyData.protected = true
 
       // Add heartbeat settings if heartbeat is required
@@ -143,7 +142,7 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
         }
       }
 
-      await api.policies.create(policyData as { name: string; productId: string; duration?: number })
+      await api.policies.create(policyData as unknown as PolicyMutableAttributes & { productId: string })
 
       toast.success('Policy created successfully')
       setOpen(false)
@@ -153,7 +152,6 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
         duration: '',
         strict: false,
         floating: false,
-        concurrent: false,
         protected: false,
         requireHeartbeat: false,
         heartbeatDuration: '3600',
@@ -267,16 +265,8 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
                 <Label htmlFor="floating">Floating license</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="concurrent" 
-                  checked={formData.concurrent}
-                  onCheckedChange={(checked) => setFormData({ ...formData, concurrent: !!checked })}
-                />
-                <Label htmlFor="concurrent">Allow concurrent usage</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="protected" 
+                <Checkbox
+                  id="protected"
                   checked={formData.protected}
                   onCheckedChange={(checked) => setFormData({ ...formData, protected: !!checked })}
                 />

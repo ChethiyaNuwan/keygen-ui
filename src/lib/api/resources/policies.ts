@@ -1,5 +1,49 @@
 import { KeygenClient } from '../client';
-import { Policy, PooledKey, KeygenResponse, PaginationOptions, KeygenListResponse } from '../../types/keygen';
+import {
+  Policy,
+  PooledKey,
+  KeygenResponse,
+  PaginationOptions,
+  KeygenListResponse,
+  PolicyHeartbeatCullStrategy,
+  PolicyHeartbeatResurrectionStrategy,
+  PolicyHeartbeatBasis,
+  PolicyMachineUniquenessStrategy,
+  PolicyMachineMatchingStrategy,
+  PolicyExpirationStrategy,
+  PolicyExpirationBasis,
+  PolicyRenewalBasis,
+  PolicyTransferStrategy,
+  PolicyAuthenticationStrategy,
+  PolicyMachineLeasingStrategy,
+  PolicyProcessLeasingStrategy,
+  PolicyOverageStrategy,
+} from '../../types/keygen';
+
+/** Fields settable on create/update — everything but the product relationship. */
+export interface PolicyMutableAttributes {
+  name: string;
+  duration?: number;
+  strict?: boolean;
+  floating?: boolean;
+  protected?: boolean;
+  requireHeartbeat?: boolean;
+  heartbeatDuration?: number;
+  heartbeatCullStrategy?: PolicyHeartbeatCullStrategy;
+  heartbeatResurrectionStrategy?: PolicyHeartbeatResurrectionStrategy;
+  heartbeatBasis?: PolicyHeartbeatBasis;
+  machineUniquenessStrategy?: PolicyMachineUniquenessStrategy;
+  machineMatchingStrategy?: PolicyMachineMatchingStrategy;
+  expirationStrategy?: PolicyExpirationStrategy;
+  expirationBasis?: PolicyExpirationBasis;
+  renewalBasis?: PolicyRenewalBasis;
+  transferStrategy?: PolicyTransferStrategy;
+  authenticationStrategy?: PolicyAuthenticationStrategy;
+  machineLeasingStrategy?: PolicyMachineLeasingStrategy;
+  processLeasingStrategy?: PolicyProcessLeasingStrategy;
+  overageStrategy?: PolicyOverageStrategy;
+  metadata?: Record<string, unknown>;
+}
 
 export class PolicyResource {
   constructor(private client: KeygenClient) {}
@@ -30,33 +74,9 @@ export class PolicyResource {
   /**
    * Create a new policy
    */
-  async create(data: {
-    name: string;
-    productId: string;
-    duration?: number;
-    strict?: boolean;
-    floating?: boolean;
-    concurrent?: boolean;
-    protected?: boolean;
-    requireHeartbeat?: boolean;
-    heartbeatDuration?: number;
-    heartbeatCullStrategy?: 'DEACTIVATE_DEAD' | 'KEEP_DEAD';
-    heartbeatResurrectionStrategy?: 'NO_REVIVE' | 'ALWAYS_REVIVE';
-    heartbeatBasis?: 'FROM_CREATION' | 'FROM_FIRST_PING';
-    machineUniquenessStrategy?: 'UNIQUE_PER_LICENSE' | 'UNIQUE_PER_ACCOUNT';
-    machineMatchingStrategy?: 'MATCH_ANY' | 'MATCH_TWO' | 'MATCH_MOST' | 'MATCH_ALL';
-    expirationStrategy?: 'RESTRICT_ACCESS' | 'REVOKE_ACCESS' | 'MAINTAIN_ACCESS';
-    expirationBasis?: 'FROM_CREATION' | 'FROM_FIRST_VALIDATION' | 'FROM_FIRST_ACTIVATION' | 'FROM_FIRST_DOWNLOAD' | 'FROM_FIRST_USE';
-    renewalBasis?: 'FROM_EXPIRY' | 'FROM_NOW';
-    transferStrategy?: 'RESET_EXPIRY' | 'KEEP_EXPIRY';
-    authenticationStrategy?: 'TOKEN' | 'LICENSE' | 'MIXED' | 'NONE';
-    machineLeasingStrategy?: 'PER_LICENSE' | 'PER_USER' | 'ALWAYS_ALLOW';
-    processLeasingStrategy?: 'PER_MACHINE' | 'PER_LICENSE' | 'PER_USER' | 'ALWAYS_ALLOW';
-    overageStrategy?: 'NO_OVERAGE' | 'ALWAYS_ALLOW_OVERAGE' | 'ALLOW_1_25X_OVERAGE' | 'ALLOW_1_5X_OVERAGE' | 'ALLOW_2X_OVERAGE';
-    metadata?: Record<string, unknown>;
-  }): Promise<KeygenResponse<Policy>> {
+  async create(data: PolicyMutableAttributes & { productId: string }): Promise<KeygenResponse<Policy>> {
     const { productId, ...attributes } = data;
-    
+
     return this.client.request<Policy>('/policies', {
       method: 'POST',
       body: {
@@ -77,32 +97,10 @@ export class PolicyResource {
   }
 
   /**
-   * Update a policy
+   * Update a policy. The product relationship cannot be changed after
+   * creation, so it is deliberately not accepted here.
    */
-  async update(policyId: string, data: {
-    name?: string;
-    duration?: number;
-    strict?: boolean;
-    floating?: boolean;
-    concurrent?: boolean;
-    protected?: boolean;
-    requireHeartbeat?: boolean;
-    heartbeatDuration?: number;
-    heartbeatCullStrategy?: 'DEACTIVATE_DEAD' | 'KEEP_DEAD';
-    heartbeatResurrectionStrategy?: 'NO_REVIVE' | 'ALWAYS_REVIVE';
-    heartbeatBasis?: 'FROM_CREATION' | 'FROM_FIRST_PING';
-    machineUniquenessStrategy?: 'UNIQUE_PER_LICENSE' | 'UNIQUE_PER_ACCOUNT';
-    machineMatchingStrategy?: 'MATCH_ANY' | 'MATCH_TWO' | 'MATCH_MOST' | 'MATCH_ALL';
-    expirationStrategy?: 'RESTRICT_ACCESS' | 'REVOKE_ACCESS' | 'MAINTAIN_ACCESS';
-    expirationBasis?: 'FROM_CREATION' | 'FROM_FIRST_VALIDATION' | 'FROM_FIRST_ACTIVATION' | 'FROM_FIRST_DOWNLOAD' | 'FROM_FIRST_USE';
-    renewalBasis?: 'FROM_EXPIRY' | 'FROM_NOW';
-    transferStrategy?: 'RESET_EXPIRY' | 'KEEP_EXPIRY';
-    authenticationStrategy?: 'TOKEN' | 'LICENSE' | 'MIXED' | 'NONE';
-    machineLeasingStrategy?: 'PER_LICENSE' | 'PER_USER' | 'ALWAYS_ALLOW';
-    processLeasingStrategy?: 'PER_MACHINE' | 'PER_LICENSE' | 'PER_USER' | 'ALWAYS_ALLOW';
-    overageStrategy?: 'NO_OVERAGE' | 'ALWAYS_ALLOW_OVERAGE' | 'ALLOW_1_25X_OVERAGE' | 'ALLOW_1_5X_OVERAGE' | 'ALLOW_2X_OVERAGE';
-    metadata?: Record<string, unknown>;
-  }): Promise<KeygenResponse<Policy>> {
+  async update(policyId: string, data: Partial<PolicyMutableAttributes>): Promise<KeygenResponse<Policy>> {
     return this.client.request<Policy>(`/policies/${policyId}`, {
       method: 'PATCH',
       body: {

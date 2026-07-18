@@ -140,6 +140,46 @@ export interface Product extends KeygenResource {
 }
 
 // Policy
+// Canonical enum values per https://keygen.sh/docs/api/policies/ — shared
+// between the Policy attribute type and PolicyResource's create/update params
+// so the two can't drift apart again (they previously disagreed with each
+// other AND with the API on six different fields).
+export type PolicyHeartbeatCullStrategy = 'DEACTIVATE_DEAD' | 'KEEP_DEAD';
+export type PolicyHeartbeatResurrectionStrategy =
+  | 'NO_REVIVE'
+  | '1_MINUTE_REVIVE'
+  | '2_MINUTE_REVIVE'
+  | '5_MINUTE_REVIVE'
+  | '10_MINUTE_REVIVE'
+  | '15_MINUTE_REVIVE'
+  | 'ALWAYS_REVIVE';
+export type PolicyHeartbeatBasis = 'FROM_CREATION' | 'FROM_FIRST_PING';
+export type PolicyMachineUniquenessStrategy =
+  | 'UNIQUE_PER_ACCOUNT'
+  | 'UNIQUE_PER_PRODUCT'
+  | 'UNIQUE_PER_POLICY'
+  | 'UNIQUE_PER_LICENSE';
+export type PolicyMachineMatchingStrategy = 'MATCH_ANY' | 'MATCH_TWO' | 'MATCH_MOST' | 'MATCH_ALL';
+export type PolicyExpirationStrategy = 'RESTRICT_ACCESS' | 'REVOKE_ACCESS' | 'MAINTAIN_ACCESS' | 'ALLOW_ACCESS';
+export type PolicyExpirationBasis =
+  | 'FROM_CREATION'
+  | 'FROM_FIRST_VALIDATION'
+  | 'FROM_FIRST_ACTIVATION'
+  | 'FROM_FIRST_DOWNLOAD'
+  | 'FROM_FIRST_USE';
+export type PolicyRenewalBasis = 'FROM_EXPIRY' | 'FROM_NOW' | 'FROM_NOW_IF_EXPIRED';
+export type PolicyTransferStrategy = 'RESET_EXPIRY' | 'KEEP_EXPIRY';
+export type PolicyAuthenticationStrategy = 'TOKEN' | 'LICENSE' | 'MIXED' | 'NONE';
+export type PolicyMachineLeasingStrategy = 'PER_LICENSE' | 'PER_USER';
+export type PolicyProcessLeasingStrategy = 'PER_MACHINE' | 'PER_LICENSE' | 'PER_USER';
+export type PolicyOverageStrategy =
+  | 'NO_OVERAGE'
+  | 'ALWAYS_ALLOW_OVERAGE'
+  | 'ALLOW_1_25X_OVERAGE'
+  | 'ALLOW_1_5X_OVERAGE'
+  | 'ALLOW_2X_OVERAGE';
+export type PolicyCheckInInterval = 'day' | 'week' | 'month' | 'year';
+
 export interface Policy extends KeygenResource {
   type: 'policies';
   attributes: {
@@ -156,7 +196,7 @@ export interface Policy extends KeygenResource {
     requireChecksumScope: boolean;
     requireVersionScope: boolean;
     requireCheckIn: boolean;
-    checkInInterval: 'day' | 'week' | 'month' | 'year';
+    checkInInterval: PolicyCheckInInterval;
     checkInIntervalCount: number;
     usePool: boolean;
     maxMachines?: number;
@@ -166,19 +206,19 @@ export interface Policy extends KeygenResource {
     protected: boolean;
     requireHeartbeat: boolean;
     heartbeatDuration: number;
-    heartbeatCullStrategy: 'DEACTIVATE_DEAD' | 'KEEP_DEAD';
-    heartbeatResurrectionStrategy: 'NO_REVIVE' | 'REVIVE_DEAD';
-    heartbeatBasis: 'FROM_CREATION' | 'FROM_FIRST_PING';
-    machineUniquenessStrategy: 'UNIQUE_PER_ACCOUNT' | 'UNIQUE_PER_PRODUCT' | 'UNIQUE_PER_POLICY' | 'UNIQUE_PER_LICENSE';
-    machineMatchingStrategy: 'MATCH_BY_FINGERPRINT' | 'MATCH_BY_IP';
-    expirationStrategy: 'EXPIRE_IMMEDIATELY' | 'RESTRICT_ACCESS' | 'MAINTAIN_ACCESS' | 'ALLOW_ACCESS';
-    expirationBasis: 'FROM_CREATION' | 'FROM_FIRST_VALIDATION' | 'FROM_FIRST_ACTIVATION' | 'FROM_FIRST_DOWNLOAD' | 'FROM_FIRST_USE';
-    renewalBasis: 'FROM_EXPIRY' | 'FROM_NOW';
-    transferStrategy: 'TRANSFER_TO_USER' | 'KEEP_WITH_USER' | 'REVOKE_ACCESS';
-    authenticationStrategy: 'TOKEN' | 'LICENSE' | 'MIXED' | 'NONE';
-    machineLeasingStrategy: 'PER_MACHINE' | 'PER_USER' | 'ALL_MACHINES';
-    processLeasingStrategy: 'PER_MACHINE' | 'PER_LICENSE' | 'ALL_PROCESSES';
-    overageStrategy: 'NO_OVERAGE' | 'ALLOW_1_25X_OVERAGE' | 'ALLOW_1_5X_OVERAGE' | 'ALLOW_2X_OVERAGE' | 'ALWAYS_ALLOW_OVERAGE';
+    heartbeatCullStrategy: PolicyHeartbeatCullStrategy;
+    heartbeatResurrectionStrategy: PolicyHeartbeatResurrectionStrategy;
+    heartbeatBasis: PolicyHeartbeatBasis;
+    machineUniquenessStrategy: PolicyMachineUniquenessStrategy;
+    machineMatchingStrategy: PolicyMachineMatchingStrategy;
+    expirationStrategy: PolicyExpirationStrategy;
+    expirationBasis: PolicyExpirationBasis;
+    renewalBasis: PolicyRenewalBasis;
+    transferStrategy: PolicyTransferStrategy;
+    authenticationStrategy: PolicyAuthenticationStrategy;
+    machineLeasingStrategy: PolicyMachineLeasingStrategy;
+    processLeasingStrategy: PolicyProcessLeasingStrategy;
+    overageStrategy: PolicyOverageStrategy;
     metadata: Record<string, unknown>;
     created: string;
     updated: string;
