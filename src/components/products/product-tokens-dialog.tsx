@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,8 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Table,
@@ -27,6 +36,14 @@ import { Product, Token } from '@/lib/types/keygen'
 import { toast } from 'sonner'
 import { handleCrudError, handleLoadError } from '@/lib/utils/error-handling'
 import { formatDateTime } from '@/lib/utils/format'
+
+const tokenSchema = z.object({
+  name: z.string(),
+})
+
+type TokenFormValues = z.infer<typeof tokenSchema>
+
+const defaultValues: TokenFormValues = { name: '' }
 
 interface ProductTokensDialogProps {
   product: Product | null
@@ -44,10 +61,13 @@ interface ProductTokensDialogProps {
 export function ProductTokensDialog({ product, open, onOpenChange }: ProductTokensDialogProps) {
   const [tokens, setTokens] = useState<Token[]>([])
   const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [name, setName] = useState('')
   const [newSecret, setNewSecret] = useState<string | null>(null)
   const api = getKeygenApi()
+
+  const form = useForm<TokenFormValues>({
+    resolver: zodResolver(tokenSchema),
+    defaultValues,
+  })
 
   const loadTokens = useCallback(async () => {
     if (!product) return
@@ -65,18 +85,18 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
   useEffect(() => {
     if (open && product) {
       setNewSecret(null)
-      setName('')
+      form.reset(defaultValues)
       loadTokens()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, product, loadTokens])
 
-  const handleCreate = async () => {
+  const onSubmit = async (values: TokenFormValues) => {
     if (!product) return
 
     try {
-      setCreating(true)
       const response = await api.products.createToken(product.id, {
-        name: name.trim() || undefined,
+        name: values.name.trim() || undefined,
       })
 
       // The secret is only ever present on this response — never readable again.
@@ -85,12 +105,10 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
         setNewSecret(secret)
         toast.success('Token created — copy it now')
       }
-      setName('')
+      form.reset(defaultValues)
       loadTokens()
     } catch (error: unknown) {
       handleCrudError(error, 'create', 'token')
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -99,6 +117,8 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
     await navigator.clipboard.writeText(newSecret)
     toast.success('Copied to clipboard')
   }
+
+  const creating = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,21 +159,25 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
           </Alert>
         )}
 
-        <div className="flex items-end gap-2">
-          <div className="grid flex-1 gap-2">
-            <Label htmlFor="token-name">Name</Label>
-            <Input
-              id="token-name"
-              placeholder="e.g. CI release pipeline"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={creating}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-end gap-2">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. CI release pipeline" disabled={creating} {...field} />
+                  </FormControl>
+                </FormItem>
+              )}
             />
-          </div>
-          <Button onClick={handleCreate} disabled={creating}>
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create token'}
-          </Button>
-        </div>
+            <Button type="submit" disabled={creating}>
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create token'}
+            </Button>
+          </form>
+        </Form>
 
         {loading && tokens.length === 0 ? (
           <div className="text-muted-foreground flex h-20 items-center justify-center text-sm">

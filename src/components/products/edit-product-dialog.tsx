@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,6 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -27,16 +38,9 @@ import { toast } from 'sonner'
 import { Product } from '@/lib/types/keygen'
 import { handleCrudError } from '@/lib/utils/error-handling'
 
-interface EditProductDialogProps {
-  product: Product | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onProductUpdated?: () => void
-}
-
 const PLATFORM_OPTIONS = [
   'Windows',
-  'macOS', 
+  'macOS',
   'Linux',
   'iOS',
   'Android',
@@ -45,72 +49,101 @@ const PLATFORM_OPTIONS = [
   'Cloud'
 ]
 
-export function EditProductDialog({ 
-  product, 
-  open, 
-  onOpenChange, 
-  onProductUpdated 
-}: EditProductDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    url: '',
-    distributionStrategy: 'LICENSED' as 'LICENSED' | 'OPEN' | 'CLOSED',
-    platforms: [] as string[],
-    metadata: ''
-  })
+function isValidJsonObjectOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    const parsed = JSON.parse(value)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
 
+const productSchema = z.object({
+  name: z.string().trim().min(1, 'Product name is required'),
+  code: z.string(),
+  url: z.string(),
+  distributionStrategy: z.enum(['LICENSED', 'OPEN', 'CLOSED']),
+  platforms: z.array(z.string()),
+  metadata: z.string().refine(isValidJsonObjectOrEmpty, 'Metadata must be a valid JSON object'),
+})
+
+type ProductFormValues = z.infer<typeof productSchema>
+
+function productToFormValues(product: Product): ProductFormValues {
+  const a = product.attributes
+  return {
+    name: a.name || '',
+    code: a.code || '',
+    url: a.url || '',
+    distributionStrategy: a.distributionStrategy || 'LICENSED',
+    platforms: a.platforms || [],
+    metadata: a.metadata ? JSON.stringify(a.metadata, null, 2) : '',
+  }
+}
+
+interface EditProductDialogProps {
+  product: Product | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onProductUpdated?: () => void
+}
+
+export function EditProductDialog({
+  product,
+  open,
+  onOpenChange,
+  onProductUpdated
+}: EditProductDialogProps) {
   const api = getKeygenApi()
+
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema),
+    defaultValues: product ? productToFormValues(product) : undefined,
+  })
 
   // Initialize form data when product changes
   useEffect(() => {
     if (product) {
-      setFormData({
-        name: product.attributes.name || '',
-        code: product.attributes.code || '',
-        url: product.attributes.url || '',
-        distributionStrategy: product.attributes.distributionStrategy || 'LICENSED',
-        platforms: product.attributes.platforms || [],
-        metadata: product.attributes.metadata ? JSON.stringify(product.attributes.metadata, null, 2) : ''
-      })
+      form.reset(productToFormValues(product))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const platforms = form.watch('platforms')
+
+  const handlePlatformToggle = (platform: string, checked: boolean) => {
+    if (checked) {
+      form.setValue('platforms', [...platforms, platform])
+    } else {
+      form.setValue('platforms', platforms.filter(p => p !== platform))
+    }
+  }
+
+  const generateCode = () => {
+    const name = form.getValues('name')
+    if (name) {
+      const code = name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      form.setValue('code', code)
+    }
+  }
+
+  const onSubmit = async (values: ProductFormValues) => {
     if (!product) return
 
-    if (!formData.name.trim()) {
-      toast.error('Product name is required')
-      return
-    }
-
     try {
-      setLoading(true)
-      
-      let metadata: Record<string, unknown> | undefined
-      if (formData.metadata.trim()) {
-        try {
-          const parsed = JSON.parse(formData.metadata)
-          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-            toast.error('Metadata must be a JSON object')
-            return
-          }
-          metadata = parsed
-        } catch {
-          toast.error('Invalid JSON format in metadata')
-          return
-        }
-      }
+      const metadata = values.metadata.trim() ? JSON.parse(values.metadata) : undefined
 
       const productData = {
-        name: formData.name.trim(),
-        distributionStrategy: formData.distributionStrategy,
-        ...(formData.code.trim() && { code: formData.code.trim() }),
-        ...(formData.url.trim() && { url: formData.url.trim() }),
-        ...(formData.platforms.length > 0 && { platforms: formData.platforms }),
+        name: values.name.trim(),
+        distributionStrategy: values.distributionStrategy,
+        ...(values.code.trim() && { code: values.code.trim() }),
+        ...(values.url.trim() && { url: values.url.trim() }),
+        ...(values.platforms.length > 0 && { platforms: values.platforms }),
         ...(metadata && { metadata })
       }
 
@@ -121,35 +154,11 @@ export function EditProductDialog({
       onProductUpdated?.()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'Product')
-    } finally {
-      setLoading(false)
     }
   }
 
-  const handlePlatformToggle = (platform: string, checked: boolean) => {
-    if (checked) {
-      setFormData(prev => ({
-        ...prev,
-        platforms: [...prev.platforms, platform]
-      }))
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        platforms: prev.platforms.filter(p => p !== platform)
-      }))
-    }
-  }
-
-  const generateCode = () => {
-    if (formData.name) {
-      const code = formData.name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/^-+|-+$/g, '')
-      setFormData(prev => ({ ...prev, code }))
-    }
-  }
+  const loading = form.formState.isSubmitting
+  const nameValue = form.watch('name')
 
   if (!product) return null
 
@@ -162,170 +171,194 @@ export function EditProductDialog({
             Update the product information and settings.
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Basic Information
-            </h4>
-            
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Product Name *</Label>
-                <Input
-                  id="edit-name"
-                  placeholder="e.g., My Awesome App"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Basic Information
+              </h4>
+
+              <div className="grid grid-cols-1 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Product Name *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., My Awesome App" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Product Code</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input placeholder="e.g., my-awesome-app" {...field} />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={generateCode}
+                          disabled={!nameValue.trim()}
+                        >
+                          Generate
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Unique identifier for your product
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Product URL</FormLabel>
+                      <FormControl>
+                        <Input type="url" placeholder="https://myapp.com" {...field} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Website or documentation URL for your product
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-code">Product Code</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="edit-code"
-                    placeholder="e.g., my-awesome-app"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generateCode}
-                    disabled={!formData.name.trim()}
-                  >
-                    Generate
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Unique identifier for your product
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-url">Product URL</Label>
-                <Input
-                  id="edit-url"
-                  type="url"
-                  placeholder="https://myapp.com"
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Website or documentation URL for your product
-                </p>
-              </div>
             </div>
-          </div>
 
-          {/* Distribution Strategy */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium">Distribution Strategy</h4>
-            <div className="space-y-2">
-              <Label htmlFor="edit-strategy">Strategy *</Label>
-              <Select
-                value={formData.distributionStrategy}
-                onValueChange={(value: 'LICENSED' | 'OPEN' | 'CLOSED') => setFormData({ ...formData, distributionStrategy: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LICENSED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      <div>
-                        <div className="font-medium">Licensed</div>
-                        <div className="text-xs text-muted-foreground">Requires valid license</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="OPEN">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                      <div>
-                        <div className="font-medium">Open</div>
-                        <div className="text-xs text-muted-foreground">Freely available to all</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="CLOSED">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                      <div>
-                        <div className="font-medium">Closed</div>
-                        <div className="text-xs text-muted-foreground">Access restricted</div>
-                      </div>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Supported Platforms */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium">Supported Platforms</h4>
-            <div className="grid grid-cols-2 gap-3">
-              {PLATFORM_OPTIONS.map((platform) => (
-                <div key={platform} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`edit-platform-${platform}`}
-                    checked={formData.platforms.includes(platform)}
-                    onCheckedChange={(checked) => 
-                      handlePlatformToggle(platform, checked as boolean)
-                    }
-                  />
-                  <Label 
-                    htmlFor={`edit-platform-${platform}`}
-                    className="text-sm font-normal"
-                  >
-                    {platform}
-                  </Label>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Select all platforms that your product supports
-            </p>
-          </div>
-
-          {/* Metadata */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium">Metadata (Optional)</h4>
-            <div className="space-y-2">
-              <Label htmlFor="edit-metadata">Custom Metadata (JSON)</Label>
-              <Textarea
-                id="edit-metadata"
-                placeholder='{&quot;version&quot;: &quot;1.0.0&quot;, &quot;category&quot;: &quot;productivity&quot;}'
-                value={formData.metadata}
-                onChange={(e) => setFormData({ ...formData, metadata: e.target.value })}
-                rows={3}
+            {/* Distribution Strategy */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Distribution Strategy</h4>
+              <FormField
+                control={form.control}
+                name="distributionStrategy"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Strategy *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="LICENSED">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            <div>
+                              <div className="font-medium">Licensed</div>
+                              <div className="text-xs text-muted-foreground">Requires valid license</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="OPEN">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                            <div>
+                              <div className="font-medium">Open</div>
+                              <div className="text-xs text-muted-foreground">Freely available to all</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="CLOSED">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            <div>
+                              <div className="font-medium">Closed</div>
+                              <div className="text-xs text-muted-foreground">Access restricted</div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
               />
+            </div>
+
+            {/* Supported Platforms */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Supported Platforms</h4>
+              <div className="grid grid-cols-2 gap-3">
+                {PLATFORM_OPTIONS.map((platform) => (
+                  <div key={platform} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`edit-platform-${platform}`}
+                      checked={platforms.includes(platform)}
+                      onCheckedChange={(checked) =>
+                        handlePlatformToggle(platform, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`edit-platform-${platform}`}
+                      className="text-sm font-normal"
+                    >
+                      {platform}
+                    </Label>
+                  </div>
+                ))}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Optional JSON metadata for additional product information
+                Select all platforms that your product supports
               </p>
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Updating...' : 'Update Product'}
-            </Button>
-          </DialogFooter>
-        </form>
+            {/* Metadata */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Metadata (Optional)</h4>
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custom Metadata (JSON)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder='{&quot;version&quot;: &quot;1.0.0&quot;, &quot;category&quot;: &quot;productivity&quot;}'
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Optional JSON metadata for additional product information
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Updating...' : 'Update Product'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )

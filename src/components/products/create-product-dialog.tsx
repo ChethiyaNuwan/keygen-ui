@@ -1,6 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,6 +14,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -27,93 +38,63 @@ import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
 
+function isValidJsonObjectOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    const parsed = JSON.parse(value)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+const productSchema = z.object({
+  name: z.string().trim().min(1, 'Please enter a product name'),
+  code: z.string(),
+  url: z.string(),
+  distributionStrategy: z.enum(['LICENSED', 'OPEN', 'CLOSED']),
+  platforms: z.array(z.string()),
+  metadata: z.string().refine(isValidJsonObjectOrEmpty, 'Metadata must be a valid JSON object'),
+})
+
+type ProductFormValues = z.infer<typeof productSchema>
+
+const defaultValues: ProductFormValues = {
+  name: '',
+  code: '',
+  url: '',
+  distributionStrategy: 'LICENSED',
+  platforms: [],
+  metadata: '',
+}
+
 interface CreateProductDialogProps {
   onProductCreated?: () => void
 }
 
 export function CreateProductDialog({ onProductCreated }: CreateProductDialogProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [platforms, setPlatforms] = useState<string[]>([])
   const [platformInput, setPlatformInput] = useState('')
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    url: '',
-    distributionStrategy: 'LICENSED' as 'LICENSED' | 'OPEN' | 'CLOSED',
-    metadata: ''
-  })
 
   const api = getKeygenApi()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim()) {
-      toast.error('Please enter a product name')
-      return
-    }
+  const form = useForm<ProductFormValues>({
+    resolver: zodResolver(productSchema),
+    defaultValues,
+  })
 
-    try {
-      setLoading(true)
-      
-      let metadata: Record<string, unknown> | undefined
-      if (formData.metadata.trim()) {
-        try {
-          const parsed = JSON.parse(formData.metadata)
-          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-            toast.error('Metadata must be a JSON object')
-            return
-          }
-          metadata = parsed
-        } catch {
-          toast.error('Invalid JSON format in metadata')
-          return
-        }
-      }
-
-      await api.products.create({
-        name: formData.name,
-        code: formData.code || undefined,
-        url: formData.url || undefined,
-        distributionStrategy: formData.distributionStrategy,
-        platforms: platforms.length > 0 ? platforms : undefined,
-        metadata
-      })
-
-      toast.success('Product created successfully')
-      setOpen(false)
-      resetForm()
-      onProductCreated?.()
-    } catch (error: unknown) {
-      handleFormError(error, 'Product')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      code: '',
-      url: '',
-      distributionStrategy: 'LICENSED',
-      metadata: ''
-    })
-    setPlatforms([])
-    setPlatformInput('')
-  }
+  const platforms = form.watch('platforms')
 
   const addPlatform = () => {
     const platform = platformInput.trim()
     if (platform && !platforms.includes(platform)) {
-      setPlatforms([...platforms, platform])
+      form.setValue('platforms', [...platforms, platform])
       setPlatformInput('')
     }
   }
 
   const removePlatform = (platform: string) => {
-    setPlatforms(platforms.filter(p => p !== platform))
+    form.setValue('platforms', platforms.filter(p => p !== platform))
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -122,6 +103,31 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
       addPlatform()
     }
   }
+
+  const onSubmit = async (values: ProductFormValues) => {
+    try {
+      const metadata = values.metadata.trim() ? JSON.parse(values.metadata) : undefined
+
+      await api.products.create({
+        name: values.name,
+        code: values.code || undefined,
+        url: values.url || undefined,
+        distributionStrategy: values.distributionStrategy,
+        platforms: values.platforms.length > 0 ? values.platforms : undefined,
+        metadata,
+      })
+
+      toast.success('Product created successfully')
+      setOpen(false)
+      form.reset(defaultValues)
+      setPlatformInput('')
+      onProductCreated?.()
+    } catch (error: unknown) {
+      handleFormError(error, 'Product')
+    }
+  }
+
+  const loading = form.formState.isSubmitting
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -139,141 +145,166 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
             Create a new product for your licensing system. Fill in the details below.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name *</Label>
-              <Input
-                id="name"
-                placeholder="My Awesome Product"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="My Awesome Product" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="my-awesome-product" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Unique identifier for the product
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="code">Code</Label>
-              <Input
-                id="code"
-                placeholder="my-awesome-product"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Unique identifier for the product
-              </p>
-            </div>
-          </div>
 
-          <div className="space-y-2">
-              <Label htmlFor="strategy">Distribution Strategy</Label>
-              <Select
-                value={formData.distributionStrategy}
-                onValueChange={(value: 'LICENSED' | 'OPEN' | 'CLOSED') => setFormData({ ...formData, distributionStrategy: value })}
-              >
-                <SelectTrigger>
-                  {/* SelectValue mirrors the chosen item, icon included — do not
-                      render the icon here as well. */}
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LICENSED">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      Licensed
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="OPEN">
-                    <div className="flex items-center gap-2">
-                      <Unlock className="h-4 w-4" />
-                      Open
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="CLOSED">
-                    <div className="flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
-                      Closed
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="url">Product URL</Label>
-            <Input
-              id="url"
-              type="url"
-              placeholder="https://example.com"
-              value={formData.url}
-              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="platforms">Platforms</Label>
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  id="platforms"
-                  placeholder="e.g., Windows, macOS, Linux"
-                  value={platformInput}
-                  onChange={(e) => setPlatformInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                />
-                <Button type="button" onClick={addPlatform} disabled={!platformInput.trim()}>
-                  Add
-                </Button>
-              </div>
-              {platforms.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {platforms.map((platform) => (
-                    <Badge key={platform} variant="secondary" className="flex items-center gap-1">
-                      {platform}
-                      <button
-                        type="button"
-                        onClick={() => removePlatform(platform)}
-                        className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
+            <FormField
+              control={form.control}
+              name="distributionStrategy"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Distribution Strategy</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        {/* SelectValue mirrors the chosen item, icon included — do not
+                            render the icon here as well. */}
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="LICENSED">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Licensed
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="OPEN">
+                        <div className="flex items-center gap-2">
+                          <Unlock className="h-4 w-4" />
+                          Open
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="CLOSED">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4" />
+                          Closed
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
               )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="metadata">Metadata (JSON)</Label>
-            <Textarea
-              id="metadata"
-              placeholder='{&quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;Product description&quot;}'
-              value={formData.metadata}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, metadata: e.target.value })}
-              rows={3}
             />
-            <p className="text-xs text-muted-foreground">
-              Optional JSON metadata for the product
-            </p>
-          </div>
 
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => {
-                setOpen(false)
-                resetForm()
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Product'}
-            </Button>
-          </DialogFooter>
-        </form>
+            <FormField
+              control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Product URL</FormLabel>
+                  <FormControl>
+                    <Input type="url" placeholder="https://example.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-2">
+              <Label htmlFor="platforms">Platforms</Label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    id="platforms"
+                    placeholder="e.g., Windows, macOS, Linux"
+                    value={platformInput}
+                    onChange={(e) => setPlatformInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                  />
+                  <Button type="button" onClick={addPlatform} disabled={!platformInput.trim()}>
+                    Add
+                  </Button>
+                </div>
+                {platforms.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {platforms.map((platform) => (
+                      <Badge key={platform} variant="secondary" className="flex items-center gap-1">
+                        {platform}
+                        <button
+                          type="button"
+                          onClick={() => removePlatform(platform)}
+                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <FormField
+              control={form.control}
+              name="metadata"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Metadata (JSON)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder='{&quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;Product description&quot;}'
+                      rows={3}
+                      {...field}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Optional JSON metadata for the product
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setOpen(false)
+                  form.reset(defaultValues)
+                  setPlatformInput('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Creating...' : 'Create Product'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
