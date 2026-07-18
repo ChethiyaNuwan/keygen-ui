@@ -1,4 +1,5 @@
 import { ProtectedRoute } from "@/components/auth/protected-route"
+import { TokenManagement } from "@/components/settings/token-management"
 
 export default function SettingsPage() {
   return (
@@ -7,15 +8,10 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">
-            Manage your account settings, API keys, and Keygen configuration.
+            Manage account-wide API tokens.
           </p>
         </div>
-        <div className="rounded-lg border bg-card p-8 text-center">
-          <h3 className="text-lg font-semibold mb-2">Account Settings</h3>
-          <p className="text-muted-foreground">
-            Settings management features are coming soon. Configure account preferences, API tokens, and webhooks.
-          </p>
-        </div>
+        <TokenManagement />
       </div>
     </ProtectedRoute>
   )
