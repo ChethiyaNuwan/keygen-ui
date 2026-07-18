@@ -40,12 +40,14 @@ import {
   Trash2,
   Edit,
   Clock,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError } from '@/lib/utils/error-handling'
 import { CreatePolicyDialog } from './create-policy-dialog'
 import { DeletePolicyDialog } from './delete-policy-dialog'
 import { EditPolicyDialog } from './edit-policy-dialog'
+import { PolicyDetailsDialog } from './policy-details-dialog'
 
 export function PolicyManagement() {
   const [policies, setPolicies] = useState<Policy[]>([])
@@ -56,6 +58,8 @@ export function PolicyManagement() {
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [policyToEdit, setPolicyToEdit] = useState<Policy | null>(null)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [policyToView, setPolicyToView] = useState<Policy | null>(null)
   const api = getKeygenApi()
 
   const loadPolicies = useCallback(async () => {
@@ -110,6 +114,11 @@ export function PolicyManagement() {
   const handleEditPolicy = (policy: Policy) => {
     setPolicyToEdit(policy)
     setEditDialogOpen(true)
+  }
+
+  const handleViewDetails = (policy: Policy) => {
+    setPolicyToView(policy)
+    setDetailsDialogOpen(true)
   }
 
   const copyId = (id: string) => {
@@ -307,6 +316,10 @@ export function PolicyManagement() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleViewDetails(policy)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => copyId(policy.id)}>
                           Copy ID
                         </DropdownMenuItem>
@@ -350,6 +363,15 @@ export function PolicyManagement() {
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onPolicyUpdated={loadPolicies}
+        />
+      )}
+
+      {/* Details Dialog */}
+      {policyToView && (
+        <PolicyDetailsDialog
+          policy={policyToView}
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
         />
       )}
     </div>

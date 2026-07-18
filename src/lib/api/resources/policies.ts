@@ -2,6 +2,7 @@ import { KeygenClient } from '../client';
 import {
   Policy,
   PooledKey,
+  Entitlement,
   KeygenResponse,
   PaginationOptions,
   KeygenListResponse,
@@ -123,10 +124,11 @@ export class PolicyResource {
   }
 
   /**
-   * List entitlements attached to a policy
+   * List entitlements attached to a policy. Licenses under this policy
+   * inherit these automatically, in addition to any attached directly.
    */
-  async getEntitlements(policyId: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`/policies/${policyId}/entitlements`);
+  async getEntitlements(policyId: string): Promise<KeygenListResponse<Entitlement>> {
+    return this.client.request<Entitlement[]>(`/policies/${policyId}/entitlements`);
   }
 
   /**
