@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { User } from '@/lib/types/keygen'
+import { User, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -46,19 +46,25 @@ import {
   Ban,
   CheckCircle,
   Eye,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreateUserDialog } from './create-user-dialog'
 import { EditUserDialog } from './edit-user-dialog'
 import { UserDetailsDialog } from './user-details-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function UserManagement() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const api = getKeygenApi()
@@ -71,34 +77,83 @@ export function UserManagement() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
-  const loadUsers = useCallback(async () => {
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  const fetchUsers = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<User>> => {
     try {
-      setLoading(true)
-      const response = await api.users.list({ limit: 50 })
-      setUsers(response.data || [])
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        const query: Record<string, string> = { email: trimmed, firstName: trimmed, lastName: trimmed }
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(trimmed)) query.id = trimmed
+        return await api.search.search<User>({
+          type: 'users',
+          query,
+          op: 'OR',
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.users.list({
+        page: { size: pageSize, number: page },
+        ...(statusFilter === 'active' && { status: 'ACTIVE' }),
+        ...(statusFilter === 'banned' && { status: 'BANNED' }),
+      })
     } catch (error: unknown) {
       handleLoadError(error, 'users')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
+    }
+  }, [api.users, api.search, statusFilter, debouncedSearch])
+
+  const {
+    data: users,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadUsers,
+  } = usePaginatedList<User>({
+    fetcher: fetchUsers,
+    resetOn: [statusFilter, debouncedSearch],
+  })
+
+  const clearSearch = () => {
+    setSearchTerm('')
+    searchInputRef.current?.focus()
+  }
+
+  // Account-wide counts for the stats cards.
+  const [accountStats, setAccountStats] = useState({ active: 0, banned: 0, admins: 0, loading: true })
+
+  const loadAccountStats = useCallback(async () => {
+    try {
+      setAccountStats(prev => ({ ...prev, loading: true }))
+      const [activeResponse, bannedResponse, adminsResponse] = await Promise.all([
+        api.users.list({ limit: 1, status: 'ACTIVE' }),
+        api.users.list({ limit: 1, status: 'BANNED' }),
+        api.users.list({ limit: 1, roles: ['admin'] }),
+      ])
+      setAccountStats({
+        active: activeResponse.meta?.count ?? 0,
+        banned: bannedResponse.meta?.count ?? 0,
+        admins: adminsResponse.meta?.count ?? 0,
+        loading: false,
+      })
+    } catch {
+      setAccountStats(prev => ({ ...prev, loading: false }))
     }
   }, [api.users])
 
   useEffect(() => {
-    loadUsers()
-  }, [loadUsers])
+    loadAccountStats()
+  }, [loadAccountStats])
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = !searchTerm || 
-      user.attributes.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.attributes.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.attributes.lastName?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && !user.attributes.banned) ||
-      (statusFilter === 'banned' && user.attributes.banned)
-    
-    return matchesSearch && matchesStatus
-  })
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([loadUsers(), loadAccountStats()])
+  }, [loadUsers, loadAccountStats])
 
   const getBannedTone = (banned: boolean): StatusTone => (banned ? 'danger' : 'success')
 
@@ -144,7 +199,7 @@ export function UserManagement() {
         await api.users.delete(pendingUser.id)
         toast.success('User deleted successfully')
       }
-      await loadUsers()
+      await handleRefresh()
       setConfirmBanOpen(false)
       setConfirmDeleteOpen(false)
       setPendingUser(null)
@@ -187,7 +242,7 @@ export function UserManagement() {
             Manage user accounts and permissions
           </p>
         </div>
-        <CreateUserDialog onUserCreated={loadUsers} />
+        <CreateUserDialog onUserCreated={handleRefresh} />
       </div>
 
       {/* Stats Cards */}
@@ -198,7 +253,7 @@ export function UserManagement() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground">
               Registered users
             </p>
@@ -210,9 +265,7 @@ export function UserManagement() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter(u => !u.attributes.banned).length}
-            </div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.active}</div>
             <p className="text-xs text-muted-foreground">
               Active users
             </p>
@@ -224,9 +277,7 @@ export function UserManagement() {
             <UserX className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter(u => u.attributes.banned).length}
-            </div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.banned}</div>
             <p className="text-xs text-muted-foreground">
               Banned users
             </p>
@@ -238,9 +289,7 @@ export function UserManagement() {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter(u => u.attributes.role === 'admin').length}
-            </div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.admins}</div>
             <p className="text-xs text-muted-foreground">
               Administrator users
             </p>
@@ -250,16 +299,25 @@ export function UserManagement() {
 
       {/* Filters and Search */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="basis-full sm:basis-auto flex-1 sm:max-w-sm">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+        <div className="relative basis-full sm:basis-auto flex-1 sm:max-w-sm">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 pr-8"
+          />
+          {searchTerm && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSearch}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="min-w-0 flex-1 sm:w-[150px] sm:flex-none">
@@ -283,25 +341,23 @@ export function UserManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-sm text-muted-foreground">Loading users...</div>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Last Sign In</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Last Sign In</TableHead>
+                <TableHead className="w-[70px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={7} />
+              ) : users.length > 0 ? (
+                users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-3">
@@ -392,24 +448,31 @@ export function UserManagement() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          
-          {!loading && filteredUsers.length === 0 && (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <Users className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <div className="text-sm font-medium">No users found</div>
-                <div className="text-xs text-muted-foreground">
-                  {searchTerm || statusFilter !== 'all' 
-                    ? 'Try adjusting your search or filters'
-                    : 'Get started by creating your first user'
+                ))
+              ) : (
+                <EmptyState
+                  icon={Users}
+                  colSpan={7}
+                  title="No users found"
+                  description={
+                    searchTerm || statusFilter !== 'all'
+                      ? 'Try adjusting your search or filters'
+                      : 'Get started by creating your first user'
                   }
-                </div>
-              </div>
-            </div>
+                />
+              )}
+            </TableBody>
+          </Table>
+
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
@@ -442,7 +505,7 @@ export function UserManagement() {
           user={selectedUser}
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
-          onUserUpdated={loadUsers}
+          onUserUpdated={handleRefresh}
         />
       )}
 
