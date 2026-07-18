@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Policy } from '@/lib/types/keygen'
+import { Policy, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,16 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Search,
-  Filter,
   MoreVertical,
   Shield,
   Users,
@@ -44,16 +36,21 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreatePolicyDialog } from './create-policy-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { EditPolicyDialog } from './edit-policy-dialog'
 import { PolicyDetailsDialog } from './policy-details-dialog'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function PolicyManagement() {
-  const [policies, setPolicies] = useState<Policy[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [policyToDelete, setPolicyToDelete] = useState<Policy | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -63,41 +60,54 @@ export function PolicyManagement() {
   const [policyToView, setPolicyToView] = useState<Policy | null>(null)
   const api = getKeygenApi()
 
-  const loadPolicies = useCallback(async () => {
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  // Keygen's PoliciesController only registers a server-side scope for
+  // `product` (has_scope(:product)) — there is no scope for floating/strict/
+  // protected/duration, so a type filter can't be applied server-side. Rather
+  // than filtering only the current page (which would silently hide matches
+  // sitting on other pages), the type filter dropdown was dropped; the stat
+  // cards below are relabeled "this page" instead, same treatment as
+  // machines' "Not Started" card.
+  const fetchPolicies = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Policy>> => {
     try {
-      setLoading(true)
-      const response = await api.policies.list({ limit: 50 })
-      setPolicies(response.data || [])
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        return await api.search.search<Policy>({
+          type: 'policies',
+          query: { name: trimmed },
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.policies.list({ page: { size: pageSize, number: page } })
     } catch (error: unknown) {
       handleLoadError(error, 'policies')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.policies])
+  }, [api.policies, api.search, debouncedSearch])
 
-  useEffect(() => {
-    loadPolicies()
-  }, [loadPolicies])
-
-  const filteredPolicies = policies.filter(policy => {
-    const matchesSearch = !searchTerm || 
-      policy.attributes.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesType = typeFilter === 'all' || 
-      (typeFilter === 'floating' && policy.attributes.floating) ||
-      (typeFilter === 'node-locked' && !policy.attributes.floating) ||
-      (typeFilter === 'protected' && policy.attributes.protected) ||
-      (typeFilter === 'strict' && policy.attributes.strict)
-    
-    return matchesSearch && matchesType
+  const {
+    data: policies,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadPolicies,
+  } = usePaginatedList<Policy>({
+    fetcher: fetchPolicies,
+    resetOn: [debouncedSearch],
   })
 
   const getExpirationText = (duration?: number) => {
     if (!duration) return 'Never expires'
-    
+
     const days = Math.floor(duration / (24 * 60 * 60))
     const hours = Math.floor((duration % (24 * 60 * 60)) / (60 * 60))
-    
+
     if (days > 0) {
       return `${days} day${days !== 1 ? 's' : ''}`
     } else if (hours > 0) {
@@ -165,7 +175,7 @@ export function PolicyManagement() {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{policies.length}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground">
               All licensing policies
             </p>
@@ -173,7 +183,7 @@ export function PolicyManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Floating Policies</CardTitle>
+            <CardTitle className="text-sm font-medium">Floating (this page)</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -187,7 +197,7 @@ export function PolicyManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Protected</CardTitle>
+            <CardTitle className="text-sm font-medium">Protected (this page)</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -201,7 +211,7 @@ export function PolicyManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Timed Policies</CardTitle>
+            <CardTitle className="text-sm font-medium">Timed (this page)</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -215,7 +225,7 @@ export function PolicyManagement() {
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Search */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative basis-full sm:basis-auto flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -226,19 +236,6 @@ export function PolicyManagement() {
             className="pl-10"
           />
         </div>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="min-w-0 flex-1 sm:w-[180px] sm:flex-none">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Policies</SelectItem>
-            <SelectItem value="floating">Floating</SelectItem>
-            <SelectItem value="node-locked">Node-Locked</SelectItem>
-            <SelectItem value="protected">Protected</SelectItem>
-            <SelectItem value="strict">Strict</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Policies Table */}
@@ -256,19 +253,9 @@ export function PolicyManagement() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  Loading policies...
-                </TableCell>
-              </TableRow>
-            ) : filteredPolicies.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  No policies found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredPolicies.map((policy) => (
+              <TableSkeleton rows={Math.min(pageSize, 10)} columns={6} />
+            ) : policies.length > 0 ? (
+              policies.map((policy) => (
                 <TableRow key={policy.id}>
                   <TableCell>
                     <div>
@@ -322,7 +309,7 @@ export function PolicyManagement() {
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(policy.attributes.created).toLocaleDateString()}
+                      {formatDate(policy.attributes.created)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
@@ -347,7 +334,7 @@ export function PolicyManagement() {
                           Edit Policy
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           onClick={() => handleDeletePolicy(policy)}
                           className="text-red-600"
                         >
@@ -359,9 +346,31 @@ export function PolicyManagement() {
                   </TableCell>
                 </TableRow>
               ))
+            ) : (
+              <EmptyState
+                icon={Shield}
+                colSpan={6}
+                title="No policies found"
+                description={
+                  searchTerm
+                    ? 'Try adjusting your search'
+                    : 'Create a policy to define licensing rules for your products'
+                }
+              />
             )}
           </TableBody>
         </Table>
+
+        {!loading && (
+          <PaginationControls
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Delete Dialog */}
