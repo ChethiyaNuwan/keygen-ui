@@ -91,6 +91,9 @@ export function LicenseManagement() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
 
+  // Account-wide counts for the stats cards (independent of the current page/search)
+  const [accountStats, setAccountStats] = useState({ active: 0, expired: 0, loading: true })
+
   const api = getKeygenApi()
 
   // Keyboard shortcut: Cmd/Ctrl+K to focus search
@@ -183,6 +186,30 @@ export function LicenseManagement() {
     setCurrentPage(1)
   }, [statusFilter, pageSize, debouncedSearch])
 
+  // Account-wide active/expired counts for the stats cards. These are separate
+  // queries (limit: 1, status filter) so the numbers reflect all licenses, not
+  // just the currently loaded page.
+  const loadAccountStats = useCallback(async () => {
+    try {
+      setAccountStats(prev => ({ ...prev, loading: true }))
+      const [activeResponse, expiredResponse] = await Promise.all([
+        api.licenses.list({ limit: 1, status: 'active' }),
+        api.licenses.list({ limit: 1, status: 'expired' }),
+      ])
+      setAccountStats({
+        active: activeResponse.meta?.count ?? 0,
+        expired: expiredResponse.meta?.count ?? 0,
+        loading: false,
+      })
+    } catch {
+      setAccountStats(prev => ({ ...prev, loading: false }))
+    }
+  }, [api.licenses])
+
+  useEffect(() => {
+    loadAccountStats()
+  }, [loadAccountStats])
+
   // Display data
   const displayLicenses = licenses
   const displayTotalCount = totalCount
@@ -192,8 +219,8 @@ export function LicenseManagement() {
 
   // Refresh handler — used after CRUD operations
   const handleRefresh = useCallback(async () => {
-    await loadData()
-  }, [loadData])
+    await Promise.all([loadData(), loadAccountStats()])
+  }, [loadData, loadAccountStats])
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -322,10 +349,8 @@ export function LicenseManagement() {
     return pages
   }
 
-  // Stats from currently loaded page
-  const activeCount = licenses.filter(l => l.attributes.status === 'active').length
-  const expiredCount = licenses.filter(l => l.attributes.status === 'expired').length
-  const totalUsage = licenses.reduce((acc, l) => acc + (l.attributes.uses || 0), 0)
+  // Usage has no server-side aggregate — sum from the currently loaded page only.
+  const pageUsage = licenses.reduce((acc, l) => acc + (l.attributes.uses || 0), 0)
 
   return (
     <div className="space-y-6 px-4 lg:px-6">
@@ -360,7 +385,7 @@ export function LicenseManagement() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeCount}</div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.active}</div>
             <p className="text-xs text-muted-foreground">Currently active licenses</p>
           </CardContent>
         </Card>
@@ -370,18 +395,18 @@ export function LicenseManagement() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{expiredCount}</div>
+            <div className="text-2xl font-bold">{accountStats.loading ? '...' : accountStats.expired}</div>
             <p className="text-xs text-muted-foreground">Need renewal</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Usage</CardTitle>
+            <CardTitle className="text-sm font-medium">Usage (this page)</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalUsage}</div>
-            <p className="text-xs text-muted-foreground">Total activations</p>
+            <div className="text-2xl font-bold">{pageUsage}</div>
+            <p className="text-xs text-muted-foreground">Activations on the current page</p>
           </CardContent>
         </Card>
       </div>
