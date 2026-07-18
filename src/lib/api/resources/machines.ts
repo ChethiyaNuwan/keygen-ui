@@ -21,6 +21,7 @@ export class MachineResource {
     if (filters.policy) params.policy = filters.policy;
     if (filters.fingerprint) params.fingerprint = filters.fingerprint;
     if (filters.ip) params.ip = filters.ip;
+    if (filters.status) params.status = filters.status;
 
     return this.client.request<Machine[]>('machines', { params });
   }

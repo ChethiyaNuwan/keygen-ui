@@ -514,6 +514,13 @@ export interface MachineFilters extends PaginationOptions {
   policy?: string;
   fingerprint?: string;
   ip?: string;
+  /**
+   * Server-side heartbeat scope — only 'ALIVE' | 'DEAD' are real (verified
+   * against Machine#with_status in keygen-api). There is no server-side
+   * "not started" scope; that's a client-computed nuance of the serialized
+   * heartbeatStatus attribute, not something the list endpoint can filter on.
+   */
+  status?: 'ALIVE' | 'DEAD';
 }
 
 export interface UserFilters extends PaginationOptions {
