@@ -5,6 +5,7 @@ import {
   ReleaseChannel,
   ReleaseStatus,
   ReleaseFilters,
+  Constraint,
   KeygenResponse,
   KeygenListResponse,
 } from '../../types/keygen';
@@ -118,5 +119,53 @@ export class ReleaseResource {
    */
   async listArtifacts(releaseId: string): Promise<KeygenListResponse<ReleaseArtifact>> {
     return this.client.request<ReleaseArtifact[]>(`/releases/${releaseId}/artifacts`);
+  }
+
+  /**
+   * List entitlement constraints gating this release. A release with any
+   * constraints attached can only be downloaded by a license entitled to
+   * every one of them (strict match).
+   */
+  async listConstraints(releaseId: string): Promise<KeygenListResponse<Constraint>> {
+    return this.client.request<Constraint[]>(`/releases/${releaseId}/constraints`);
+  }
+
+  /**
+   * Attach entitlement constraints to a release
+   */
+  async attachConstraints(releaseId: string, entitlementIds: string[]): Promise<KeygenListResponse<Constraint>> {
+    const body = {
+      data: entitlementIds.map(id => ({
+        type: 'constraints',
+        relationships: {
+          entitlement: {
+            data: { type: 'entitlements', id },
+          },
+        },
+      })),
+    };
+
+    return this.client.request<Constraint[]>(`/releases/${releaseId}/constraints`, {
+      method: 'POST',
+      body,
+    });
+  }
+
+  /**
+   * Detach entitlement constraints from a release. Takes constraint IDs
+   * (from `listConstraints`), not entitlement IDs.
+   */
+  async detachConstraints(releaseId: string, constraintIds: string[]): Promise<void> {
+    const body = {
+      data: constraintIds.map(id => ({
+        type: 'constraints',
+        id,
+      })),
+    };
+
+    await this.client.request(`/releases/${releaseId}/constraints`, {
+      method: 'DELETE',
+      body,
+    });
   }
 }

@@ -41,6 +41,7 @@ import {
   Send,
   Ban,
   FileArchive,
+  ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
@@ -55,6 +56,7 @@ import { CreateReleaseDialog } from './create-release-dialog'
 import { EditReleaseDialog } from './edit-release-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { ReleaseArtifactsDialog } from './release-artifacts-dialog'
+import { ReleaseConstraintsDialog } from './release-constraints-dialog'
 
 const FALLBACK_CHANNELS = ['stable', 'rc', 'beta', 'alpha', 'dev']
 const SEARCH_DEBOUNCE_MS = 300
@@ -72,6 +74,8 @@ export function ReleaseManagement() {
   const [deleting, setDeleting] = useState(false)
   const [artifactsRelease, setArtifactsRelease] = useState<Release | null>(null)
   const [artifactsDialogOpen, setArtifactsDialogOpen] = useState(false)
+  const [constraintsRelease, setConstraintsRelease] = useState<Release | null>(null)
+  const [constraintsDialogOpen, setConstraintsDialogOpen] = useState(false)
   const api = getKeygenApi()
 
   const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
@@ -229,6 +233,11 @@ export function ReleaseManagement() {
   const handleArtifacts = (release: Release) => {
     setArtifactsRelease(release)
     setArtifactsDialogOpen(true)
+  }
+
+  const handleConstraints = (release: Release) => {
+    setConstraintsRelease(release)
+    setConstraintsDialogOpen(true)
   }
 
   const handleEdit = (release: Release) => {
@@ -424,6 +433,10 @@ export function ReleaseManagement() {
                             <FileArchive className="mr-2 h-4 w-4" />
                             Artifacts
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleConstraints(release)}>
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Constraints
+                          </DropdownMenuItem>
                           {release.attributes.status === 'DRAFT' && (
                             <DropdownMenuItem onClick={() => handlePublish(release)}>
                               <Send className="mr-2 h-4 w-4" />
@@ -514,6 +527,12 @@ export function ReleaseManagement() {
         release={artifactsRelease}
         open={artifactsDialogOpen}
         onOpenChange={setArtifactsDialogOpen}
+      />
+
+      <ReleaseConstraintsDialog
+        release={constraintsRelease}
+        open={constraintsDialogOpen}
+        onOpenChange={setConstraintsDialogOpen}
       />
     </div>
   )

@@ -387,6 +387,17 @@ export interface Release extends KeygenResource {
   };
 }
 
+// Release entitlement constraint — gates a release behind an entitlement.
+// No attributes beyond timestamps; the entitlement/release linkage lives in
+// `relationships` (inherited from KeygenResource).
+export interface Constraint extends KeygenResource {
+  type: 'constraints';
+  attributes: {
+    created: string;
+    updated: string;
+  };
+}
+
 // Release Artifact
 export type ArtifactStatus = 'WAITING' | 'PROCESSING' | 'UPLOADED' | 'FAILED' | 'YANKED';
 
