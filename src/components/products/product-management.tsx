@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { Product } from '@/lib/types/keygen'
+import { Product, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { 
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,16 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Search,
-  Filter,
   MoreVertical,
   Package,
   Shield,
@@ -48,15 +40,19 @@ import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreateProductDialog } from './create-product-dialog'
 import { EditProductDialog } from './edit-product-dialog'
 import { ProductTokensDialog } from './product-tokens-dialog'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function ProductManagement() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [strategyFilter, setStrategyFilter] = useState<string>('all')
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
@@ -66,31 +62,46 @@ export function ProductManagement() {
   const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const api = getKeygenApi()
 
-  const loadProducts = useCallback(async () => {
+  const debouncedSearch = useDebounce(searchTerm, SEARCH_DEBOUNCE_MS)
+
+  // ProductsController registers no has_scope calls at all — `open`/
+  // `licensed`/`closed` scopes exist on the model but are never wired up to
+  // the index action, so there is no server-side way to filter by
+  // distribution strategy. Under real pagination that would mean a strategy
+  // filter only ever matches whatever happens to be on the current page, so
+  // (as with policies' type filter) it was dropped rather than shipped
+  // broken; the strategy stat cards below are relabeled "this page".
+  const fetchProducts = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Product>> => {
     try {
-      setLoading(true)
-      const response = await api.products.list({ limit: 50 })
-      setProducts(response.data || [])
+      const trimmed = debouncedSearch.trim()
+      if (trimmed.length >= 3) {
+        return await api.search.search<Product>({
+          type: 'products',
+          query: { name: trimmed },
+          page: { size: pageSize, number: page },
+        })
+      }
+
+      return await api.products.list({ page: { size: pageSize, number: page } })
     } catch (error: unknown) {
       handleLoadError(error, 'products')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.products])
+  }, [api.products, api.search, debouncedSearch])
 
-  useEffect(() => {
-    loadProducts()
-  }, [loadProducts])
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = !searchTerm || 
-      product.attributes.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.attributes.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.attributes.url?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStrategy = strategyFilter === 'all' || product.attributes.distributionStrategy === strategyFilter
-    
-    return matchesSearch && matchesStrategy
+  const {
+    data: products,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadProducts,
+  } = usePaginatedList<Product>({
+    fetcher: fetchProducts,
+    resetOn: [debouncedSearch],
   })
 
   const getStrategyColor = (strategy: string) => {
@@ -176,7 +187,7 @@ export function ProductManagement() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.length}</div>
+            <div className="text-2xl font-bold">{totalCount}</div>
             <p className="text-xs text-muted-foreground">
               Registered products
             </p>
@@ -184,7 +195,7 @@ export function ProductManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Licensed</CardTitle>
+            <CardTitle className="text-sm font-medium">Licensed (this page)</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -198,7 +209,7 @@ export function ProductManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open</CardTitle>
+            <CardTitle className="text-sm font-medium">Open (this page)</CardTitle>
             <Unlock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -212,7 +223,7 @@ export function ProductManagement() {
         </Card>
         <Card>
           <CardHeader className="flex min-h-[3.25rem] flex-row items-start justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Closed</CardTitle>
+            <CardTitle className="text-sm font-medium">Closed (this page)</CardTitle>
             <Lock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -226,7 +237,7 @@ export function ProductManagement() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
+      {/* Search */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="basis-full sm:basis-auto flex-1 sm:max-w-sm">
           <div className="relative">
@@ -239,18 +250,6 @@ export function ProductManagement() {
             />
           </div>
         </div>
-        <Select value={strategyFilter} onValueChange={setStrategyFilter}>
-          <SelectTrigger className="min-w-0 flex-1 sm:w-[180px] sm:flex-none">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Filter by strategy" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Strategies</SelectItem>
-            <SelectItem value="LICENSED">Licensed</SelectItem>
-            <SelectItem value="OPEN">Open</SelectItem>
-            <SelectItem value="CLOSED">Closed</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Products Table */}
@@ -262,25 +261,23 @@ export function ProductManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-sm text-muted-foreground">Loading products...</div>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Strategy</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Platforms</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Strategy</TableHead>
+                <TableHead>URL</TableHead>
+                <TableHead>Platforms</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="w-[70px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={7} />
+              ) : products.length > 0 ? (
+                products.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell>
                       <div className="font-medium">{product.attributes.name}</div>
@@ -364,7 +361,7 @@ export function ProductManagement() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => handleDeleteProduct(product)}
                           >
@@ -375,24 +372,31 @@ export function ProductManagement() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          
-          {!loading && filteredProducts.length === 0 && (
-            <div className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <Package className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                <div className="text-sm font-medium">No products found</div>
-                <div className="text-xs text-muted-foreground">
-                  {searchTerm || strategyFilter !== 'all' 
-                    ? 'Try adjusting your search or filters'
-                    : 'Get started by creating your first product'
+                ))
+              ) : (
+                <EmptyState
+                  icon={Package}
+                  colSpan={7}
+                  title="No products found"
+                  description={
+                    searchTerm
+                      ? 'Try adjusting your search'
+                      : 'Get started by creating your first product'
                   }
-                </div>
-              </div>
-            </div>
+                />
+              )}
+            </TableBody>
+          </Table>
+
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
