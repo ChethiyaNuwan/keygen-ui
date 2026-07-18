@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { getKeygenApi } from '@/lib/api'
 import { useAuth } from '@/lib/auth/context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -14,82 +16,98 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { handleCrudError, handleFormError } from '@/lib/utils/error-handling'
 import { formatDateTime } from '@/lib/utils/format'
 
+const detailsSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().trim().min(1, 'Email is required'),
+})
+
+type DetailsFormValues = z.infer<typeof detailsSchema>
+
+const passwordSchema = z.object({
+  current: z.string().min(1, 'Enter your current password'),
+  next: z.string().min(8, 'Use at least 8 characters'),
+  confirm: z.string(),
+}).refine((data) => data.next === data.confirm, {
+  message: 'The new passwords do not match',
+  path: ['confirm'],
+})
+
+type PasswordFormValues = z.infer<typeof passwordSchema>
+
+const emptyPasswordValues: PasswordFormValues = { current: '', next: '', confirm: '' }
+
 export function ProfilePage() {
   const { user, refresh } = useAuth()
   const api = getKeygenApi()
 
-  const [details, setDetails] = useState({
-    firstName: user?.attributes.firstName ?? '',
-    lastName: user?.attributes.lastName ?? '',
-    email: user?.attributes.email ?? '',
+  const detailsForm = useForm<DetailsFormValues>({
+    resolver: zodResolver(detailsSchema),
+    defaultValues: {
+      firstName: user?.attributes.firstName ?? '',
+      lastName: user?.attributes.lastName ?? '',
+      email: user?.attributes.email ?? '',
+    },
   })
-  const [savingDetails, setSavingDetails] = useState(false)
 
-  const [passwords, setPasswords] = useState({
-    current: '',
-    next: '',
-    confirm: '',
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: emptyPasswordValues,
   })
-  const [savingPassword, setSavingPassword] = useState(false)
+
+  // Re-sync once the authenticated user loads (it's null on first render).
+  useEffect(() => {
+    if (user) {
+      detailsForm.reset({
+        firstName: user.attributes.firstName ?? '',
+        lastName: user.attributes.lastName ?? '',
+        email: user.attributes.email ?? '',
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   if (!user) return null
 
-  const handleSaveDetails = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!details.email.trim()) {
-      toast.error('Email is required')
-      return
-    }
-
+  const handleSaveDetails = async (values: DetailsFormValues) => {
     try {
-      setSavingDetails(true)
       await api.users.update(user.id, {
-        firstName: details.firstName.trim() || undefined,
-        lastName: details.lastName.trim() || undefined,
-        email: details.email.trim(),
+        firstName: values.firstName.trim() || undefined,
+        lastName: values.lastName.trim() || undefined,
+        email: values.email.trim(),
       })
       toast.success('Profile updated')
       await refresh()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'profile')
-    } finally {
-      setSavingDetails(false)
     }
   }
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!passwords.current || !passwords.next) {
-      toast.error('Enter your current and new password')
-      return
-    }
-    if (passwords.next !== passwords.confirm) {
-      toast.error('The new passwords do not match')
-      return
-    }
-    if (passwords.next.length < 8) {
-      toast.error('Use at least 8 characters')
-      return
-    }
-
+  const handleChangePassword = async (values: PasswordFormValues) => {
     try {
-      setSavingPassword(true)
-      await api.users.updatePassword(user.id, passwords.current, passwords.next)
+      await api.users.updatePassword(user.id, values.current, values.next)
       toast.success('Password changed')
-      setPasswords({ current: '', next: '', confirm: '' })
+      passwordForm.reset(emptyPasswordValues)
     } catch (error: unknown) {
       handleFormError(error, 'password')
-    } finally {
-      setSavingPassword(false)
     }
   }
+
+  const savingDetails = detailsForm.formState.isSubmitting
+  const savingPassword = passwordForm.formState.isSubmitting
 
   return (
     <div className="space-y-6 px-4 lg:px-6">
@@ -106,48 +124,61 @@ export function ProfilePage() {
           <CardDescription>How you appear in this dashboard</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSaveDetails} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="firstName">First name</Label>
-                <Input
-                  id="firstName"
-                  value={details.firstName}
-                  onChange={(e) => setDetails({ ...details, firstName: e.target.value })}
-                  disabled={savingDetails}
+          <Form {...detailsForm}>
+            <form onSubmit={detailsForm.handleSubmit(handleSaveDetails)} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={detailsForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First name</FormLabel>
+                      <FormControl>
+                        <Input disabled={savingDetails} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={detailsForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last name</FormLabel>
+                      <FormControl>
+                        <Input disabled={savingDetails} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="lastName">Last name</Label>
-                <Input
-                  id="lastName"
-                  value={details.lastName}
-                  onChange={(e) => setDetails({ ...details, lastName: e.target.value })}
-                  disabled={savingDetails}
-                />
-              </div>
-            </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={details.email}
-                onChange={(e) => setDetails({ ...details, email: e.target.value })}
-                disabled={savingDetails}
+              <FormField
+                control={detailsForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" disabled={savingDetails} {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      This is the address you sign in with.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              <p className="text-xs text-muted-foreground">
-                This is the address you sign in with.
-              </p>
-            </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={savingDetails}>
-                {savingDetails ? 'Saving…' : 'Save changes'}
-              </Button>
-            </div>
-          </form>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={savingDetails}>
+                  {savingDetails ? 'Saving…' : 'Save changes'}
+                </Button>
+              </div>
+            </form>
+          </Form>
 
           <Separator className="my-6" />
 
@@ -164,7 +195,7 @@ export function ProfilePage() {
               <dt className="text-muted-foreground">Status</dt>
               <dd>
                 <Badge variant="outline" className="capitalize">
-                  {user.attributes.status}
+                  {user.attributes.status.toLowerCase()}
                 </Badge>
               </dd>
             </div>
@@ -188,50 +219,58 @@ export function ProfilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div className="grid gap-2">
-              <Label htmlFor="currentPassword">Current password</Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                autoComplete="current-password"
-                value={passwords.current}
-                onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-                disabled={savingPassword}
+          <Form {...passwordForm}>
+            <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+              <FormField
+                control={passwordForm.control}
+                name="current"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Current password</FormLabel>
+                    <FormControl>
+                      <Input type="password" autoComplete="current-password" disabled={savingPassword} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="newPassword">New password</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={passwords.next}
-                  onChange={(e) => setPasswords({ ...passwords, next: e.target.value })}
-                  disabled={savingPassword}
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={passwordForm.control}
+                  name="next"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New password</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" disabled={savingPassword} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={passwordForm.control}
+                  name="confirm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm new password</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" disabled={savingPassword} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="confirmPassword">Confirm new password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={passwords.confirm}
-                  onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                  disabled={savingPassword}
-                />
-              </div>
-            </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={savingPassword}>
-                {savingPassword ? 'Changing…' : 'Change password'}
-              </Button>
-            </div>
-          </form>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={savingPassword}>
+                  {savingPassword ? 'Changing…' : 'Change password'}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
