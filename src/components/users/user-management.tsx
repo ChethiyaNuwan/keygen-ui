@@ -45,10 +45,13 @@ import {
   Calendar,
   Ban,
   CheckCircle,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { CreateUserDialog } from './create-user-dialog'
+import { EditUserDialog } from './edit-user-dialog'
+import { UserDetailsDialog } from './user-details-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 export function UserManagement() {
@@ -62,6 +65,9 @@ export function UserManagement() {
   const [pendingUser, setPendingUser] = useState<User | null>(null)
   const [pendingAction, setPendingAction] = useState<'ban' | 'unban' | 'delete' | null>(null)
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
   const loadUsers = useCallback(async () => {
     try {
@@ -122,6 +128,16 @@ export function UserManagement() {
     setPendingUser(user)
     setPendingAction('delete')
     setConfirmDeleteOpen(true)
+  }
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user)
+    setEditDialogOpen(true)
+  }
+
+  const handleViewDetails = (user: User) => {
+    setSelectedUser(user)
+    setDetailsDialogOpen(true)
   }
 
   const executePendingAction = async () => {
@@ -354,7 +370,11 @@ export function UserManagement() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleViewDetails(user)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditUser(user)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit User
                           </DropdownMenuItem>
@@ -426,6 +446,25 @@ export function UserManagement() {
         loading={confirmLoading}
         onConfirm={executePendingAction}
       />
+
+      {/* Edit Dialog */}
+      {selectedUser && (
+        <EditUserDialog
+          user={selectedUser}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onUserUpdated={loadUsers}
+        />
+      )}
+
+      {/* Details Dialog */}
+      {selectedUser && (
+        <UserDetailsDialog
+          user={selectedUser}
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
+        />
+      )}
     </div>
   )
 }
