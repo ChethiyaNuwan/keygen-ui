@@ -105,23 +105,23 @@ export class GroupResource {
   /**
    * Get group licenses
    */
-  async getLicenses(id: string, options: PaginationOptions = {}): Promise<KeygenResponse<unknown[]>> {
+  async getLicenses(id: string, options: PaginationOptions = {}): Promise<KeygenListResponse<License>> {
     const params: Record<string, unknown> = {};
     if (options.limit) params.limit = options.limit;
     if (options.page) params.page = options.page;
 
-    return this.client.request(`groups/${id}/licenses`, { params });
+    return this.client.request<License[]>(`groups/${id}/licenses`, { params });
   }
 
   /**
    * Get group users
    */
-  async getUsers(id: string, options: PaginationOptions = {}): Promise<KeygenResponse<unknown[]>> {
+  async getUsers(id: string, options: PaginationOptions = {}): Promise<KeygenListResponse<User>> {
     const params: Record<string, unknown> = {};
     if (options.limit) params.limit = options.limit;
     if (options.page) params.page = options.page;
 
-    return this.client.request(`groups/${id}/users`, { params });
+    return this.client.request<User[]>(`groups/${id}/users`, { params });
   }
 
   /**
@@ -164,8 +164,8 @@ export class GroupResource {
     return this.client.request<User[]>(`groups/${id}/owners`);
   }
 
-  async attachOwners(id: string, userIds: string[]): Promise<KeygenResponse<unknown>> {
-    return this.client.request(`groups/${id}/owners`, {
+  async attachOwners(id: string, userIds: string[]): Promise<KeygenListResponse<User>> {
+    return this.client.request<User[]>(`groups/${id}/owners`, {
       method: 'POST',
       body: { data: userIds.map(userId => ({ type: 'users', id: userId })) },
     });
