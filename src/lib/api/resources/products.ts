@@ -7,17 +7,9 @@ export class ProductResource {
   /**
    * List all products
    */
-  async list(options?: PaginationOptions): Promise<KeygenListResponse<Product>> {
-    const queryParams = new URLSearchParams();
-
-    if (options?.limit) queryParams.set('limit', options.limit.toString());
-    if (options?.page?.size) queryParams.set('page[size]', options.page.size.toString());
-    if (options?.page?.number) queryParams.set('page[number]', options.page.number.toString());
-
-    const query = queryParams.toString();
-    const endpoint = query ? `/products?${query}` : '/products';
-
-    return this.client.request<Product[]>(endpoint);
+  async list(options: PaginationOptions = {}): Promise<KeygenListResponse<Product>> {
+    const params = this.client.buildPaginationParams(options);
+    return this.client.request<Product[]>('/products', { params });
   }
 
   /**

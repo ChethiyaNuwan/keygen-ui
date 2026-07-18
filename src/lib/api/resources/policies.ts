@@ -52,17 +52,9 @@ export class PolicyResource {
   /**
    * List all policies
    */
-  async list(options?: PaginationOptions): Promise<KeygenListResponse<Policy>> {
-    const queryParams = new URLSearchParams();
-
-    if (options?.limit) queryParams.set('limit', options.limit.toString());
-    if (options?.page?.size) queryParams.set('page[size]', options.page.size.toString());
-    if (options?.page?.number) queryParams.set('page[number]', options.page.number.toString());
-
-    const query = queryParams.toString();
-    const endpoint = query ? `/policies?${query}` : '/policies';
-
-    return this.client.request<Policy[]>(endpoint);
+  async list(options: PaginationOptions = {}): Promise<KeygenListResponse<Policy>> {
+    const params = this.client.buildPaginationParams(options);
+    return this.client.request<Policy[]>('/policies', { params });
   }
 
   /**

@@ -12,21 +12,19 @@ export class ArtifactResource {
   /**
    * List artifacts, optionally filtered by release/product/platform/etc.
    */
-  async list(options?: ArtifactFilters): Promise<KeygenListResponse<ReleaseArtifact>> {
-    const queryParams = new URLSearchParams();
+  async list(options: ArtifactFilters = {}): Promise<KeygenListResponse<ReleaseArtifact>> {
+    const params = {
+      ...this.client.buildPaginationParams(options),
+    };
 
-    if (options?.limit) queryParams.set('limit', options.limit.toString());
-    if (options?.release) queryParams.set('release', options.release);
-    if (options?.product) queryParams.set('product', options.product);
-    if (options?.platform) queryParams.set('platform', options.platform);
-    if (options?.arch) queryParams.set('arch', options.arch);
-    if (options?.filetype) queryParams.set('filetype', options.filetype);
-    if (options?.status) queryParams.set('status', options.status);
+    if (options.release) params.release = options.release;
+    if (options.product) params.product = options.product;
+    if (options.platform) params.platform = options.platform;
+    if (options.arch) params.arch = options.arch;
+    if (options.filetype) params.filetype = options.filetype;
+    if (options.status) params.status = options.status;
 
-    const query = queryParams.toString();
-    const endpoint = query ? `/artifacts?${query}` : '/artifacts';
-
-    return this.client.request<ReleaseArtifact[]>(endpoint);
+    return this.client.request<ReleaseArtifact[]>('/artifacts', { params });
   }
 
   /**

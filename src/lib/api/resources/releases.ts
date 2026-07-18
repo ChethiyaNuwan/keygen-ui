@@ -15,20 +15,16 @@ export class ReleaseResource {
   /**
    * List releases, optionally filtered by product, channel or status
    */
-  async list(options?: ReleaseFilters): Promise<KeygenListResponse<Release>> {
-    const queryParams = new URLSearchParams();
+  async list(options: ReleaseFilters = {}): Promise<KeygenListResponse<Release>> {
+    const params = {
+      ...this.client.buildPaginationParams(options),
+    };
 
-    if (options?.limit) queryParams.set('limit', options.limit.toString());
-    if (options?.product) queryParams.set('product', options.product);
-    if (options?.channel) queryParams.set('channel', options.channel);
-    if (options?.status) queryParams.set('status', options.status);
-    if (options?.page?.size) queryParams.set('page[size]', options.page.size.toString());
-    if (options?.page?.number) queryParams.set('page[number]', options.page.number.toString());
+    if (options.product) params.product = options.product;
+    if (options.channel) params.channel = options.channel;
+    if (options.status) params.status = options.status;
 
-    const query = queryParams.toString();
-    const endpoint = query ? `/releases?${query}` : '/releases';
-
-    return this.client.request<Release[]>(endpoint);
+    return this.client.request<Release[]>('/releases', { params });
   }
 
   /**
