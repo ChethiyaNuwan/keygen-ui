@@ -16,6 +16,20 @@ import {
 // Error types are now defined in @/lib/types/errors
 // This client throws proper typed errors instead of generic Error instances
 
+/**
+ * Base64-encode a UTF-8 string in both browser and Node (Buffer isn't
+ * available in the browser without a bundler polyfill; btoa alone can't
+ * handle non-Latin1 input).
+ */
+function toBase64(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
 export interface KeygenClientConfig {
   apiUrl: string;
   accountId: string;
@@ -289,7 +303,7 @@ export class KeygenClient {
    * Authenticate with email and password to get a token
    */
   async authenticate(email: string, password: string, tokenName = 'Keygen UI Token'): Promise<string> {
-    const credentials = Buffer.from(`${email}:${password}`).toString('base64');
+    const credentials = toBase64(`${email}:${password}`);
 
     const response = await this.request<{ attributes: { token: string } }>('/tokens', {
       method: 'POST',
