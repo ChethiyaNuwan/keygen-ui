@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { User, UserFilters, License, Machine, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
+import { User, UserFilters, License, Machine, SecondFactor, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
 import { setGroup } from './relationships';
 
 export class UserResource {
@@ -204,8 +204,8 @@ export class UserResource {
   /**
    * Get user's second factors
    */
-  async getSecondFactors(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`users/${id}/second-factors`);
+  async getSecondFactors(id: string): Promise<KeygenListResponse<SecondFactor>> {
+    return this.client.request<SecondFactor[]>(`users/${id}/second-factors`);
   }
 
   /**
@@ -214,7 +214,7 @@ export class UserResource {
   async createSecondFactor(id: string, factorData: {
     secret: string;
     uri?: string;
-  }): Promise<KeygenResponse<unknown>> {
+  }): Promise<KeygenResponse<SecondFactor>> {
     const body = {
       data: {
         type: 'second-factors',

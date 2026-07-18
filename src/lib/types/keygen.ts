@@ -331,6 +331,20 @@ export interface PooledKey extends KeygenResource {
   attributes: { key: string; created: string; updated: string };
 }
 
+// A user's TOTP second factor. secret/uri are only present while the
+// factor is unconfirmed (enabled: false) — Keygen stops returning them
+// once it's enabled, to avoid leaking a live secret.
+export interface SecondFactor extends KeygenResource {
+  type: 'second-factors';
+  attributes: {
+    uri?: string;
+    secret?: string;
+    enabled: boolean;
+    created: string;
+    updated: string;
+  };
+}
+
 // Token
 export interface Token extends KeygenResource {
   type: 'tokens';

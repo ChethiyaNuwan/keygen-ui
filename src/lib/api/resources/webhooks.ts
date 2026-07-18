@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { Webhook, WebhookFilters, WebhookEventRecord, KeygenResponse, KeygenListResponse } from '../../types/keygen';
+import { Webhook, WebhookFilters, WebhookEventRecord, PaginationOptions, KeygenResponse, KeygenListResponse } from '../../types/keygen';
 
 // Every event Keygen CE can broadcast, extracted from BroadcastEventService.call
 // sites in the keygen-api source (github.com/keygen-sh/keygen-api) — the
@@ -267,15 +267,9 @@ export class WebhookResource {
   /**
    * Get webhook delivery logs
    */
-  async getDeliveries(id: string, options: {
-    limit?: number;
-    page?: number;
-  } = {}): Promise<KeygenResponse<unknown[]>> {
-    const params: Record<string, unknown> = {};
-    if (options.limit) params.limit = options.limit;
-    if (options.page) params.page = options.page;
-
-    return this.client.request(`webhook-endpoints/${id}/webhook-events`, { params });
+  async getDeliveries(id: string, options: PaginationOptions = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
+    const params = this.client.buildPaginationParams(options);
+    return this.client.request<WebhookEventRecord[]>(`webhook-endpoints/${id}/webhook-events`, { params });
   }
 
   /**
@@ -305,14 +299,8 @@ export class WebhookResource {
   /**
    * List delivery attempts across all endpoints.
    */
-  async listEvents(options: {
-    limit?: number;
-    page?: number;
-  } = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
-    const params: Record<string, unknown> = {};
-    if (options.limit) params.limit = options.limit;
-    if (options.page) params.page = options.page;
-
+  async listEvents(options: PaginationOptions = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
+    const params = this.client.buildPaginationParams(options);
     return this.client.request<WebhookEventRecord[]>('webhook-events', { params });
   }
 
