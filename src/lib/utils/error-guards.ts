@@ -1,6 +1,10 @@
 /**
  * Type Guard Functions for Error Identification
- * Provides type-safe error checking without type assertions
+ *
+ * client.ts throws real Error subclasses (see @/lib/types/errors), so these
+ * are just instanceof checks — kept as functions so call sites don't need to
+ * import the classes directly, and so the handful of derived checks
+ * (hasHttpStatus, isNotFoundError, etc.) stay in one place.
  */
 
 import {
@@ -10,97 +14,32 @@ import {
   ValidationError,
   ParseError,
   AppError,
-  ERROR_CODES,
+  KeygenClientError,
   HTTP_STATUS
 } from '@/lib/types/errors'
 
-/**
- * Type guard to check if an error is a KeygenApiError
- */
 export function isKeygenApiError(error: unknown): error is KeygenApiError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof (error as { status: unknown }).status === 'number' &&
-    'message' in error &&
-    typeof (error as { message: unknown }).message === 'string'
-  )
+  return error instanceof KeygenApiError
 }
 
-/**
- * Type guard to check if an error is a NetworkError
- */
 export function isNetworkError(error: unknown): error is NetworkError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string' &&
-    [
-      ERROR_CODES.NETWORK_ERROR,
-      ERROR_CODES.TIMEOUT,
-      ERROR_CODES.CONNECTION_REFUSED,
-      ERROR_CODES.ABORT
-    ].includes((error as { code: string }).code as 'NETWORK_ERROR' | 'TIMEOUT' | 'CONNECTION_REFUSED' | 'ABORT')
-  )
+  return error instanceof NetworkError
 }
 
-/**
- * Type guard to check if an error is an AuthError
- */
 export function isAuthError(error: unknown): error is AuthError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string' &&
-    [
-      ERROR_CODES.AUTH_FAILED,
-      ERROR_CODES.TOKEN_EXPIRED,
-      ERROR_CODES.INVALID_CREDENTIALS,
-      ERROR_CODES.UNAUTHORIZED
-    ].includes((error as { code: string }).code as 'AUTH_FAILED' | 'TOKEN_EXPIRED' | 'INVALID_CREDENTIALS' | 'UNAUTHORIZED') &&
-    'status' in error &&
-    ((error as { status: unknown }).status === HTTP_STATUS.UNAUTHORIZED || (error as { status: unknown }).status === HTTP_STATUS.FORBIDDEN)
-  )
+  return error instanceof AuthError
 }
 
-/**
- * Type guard to check if an error is a ValidationError
- */
 export function isValidationError(error: unknown): error is ValidationError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: unknown }).code === ERROR_CODES.VALIDATION_ERROR
-  )
+  return error instanceof ValidationError
 }
 
-/**
- * Type guard to check if an error is a ParseError
- */
 export function isParseError(error: unknown): error is ParseError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string' &&
-    [ERROR_CODES.PARSE_ERROR, ERROR_CODES.JSON_ERROR].includes((error as { code: string }).code as 'PARSE_ERROR' | 'JSON_ERROR')
-  )
+  return error instanceof ParseError
 }
 
-/**
- * Type guard to check if an error is an AppError
- */
 export function isAppError(error: unknown): error is AppError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code: unknown }).code === ERROR_CODES.APP_ERROR
-  )
+  return error instanceof AppError
 }
 
 /**
@@ -114,12 +53,7 @@ export function isJavaScriptError(error: unknown): error is Error {
  * Type guard to check if an error has a specific HTTP status
  */
 export function hasHttpStatus(error: unknown, status: number): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    (error as { status: unknown }).status === status
-  )
+  return (isKeygenApiError(error) || isAuthError(error)) && error.status === status
 }
 
 /**
@@ -158,26 +92,6 @@ export function getErrorMessage(error: unknown): string {
     return error.detail || error.message || 'API Error'
   }
 
-  if (isNetworkError(error)) {
-    return error.message || 'Network Error'
-  }
-
-  if (isAuthError(error)) {
-    return error.message || 'Authentication Error'
-  }
-
-  if (isValidationError(error)) {
-    return error.message || 'Validation Error'
-  }
-
-  if (isParseError(error)) {
-    return error.message || 'Parse Error'
-  }
-
-  if (isAppError(error)) {
-    return error.message || 'Application Error'
-  }
-
   if (isJavaScriptError(error)) {
     return error.message || 'Unknown Error'
   }
@@ -194,7 +108,7 @@ export function getErrorMessage(error: unknown): string {
  * Returns an array of user-friendly error messages
  */
 export function getDetailedErrorMessages(error: unknown): string[] {
-  if (!isKeygenApiError(error) || !error.errors || error.errors.length === 0) {
+  if (!isKeygenApiError(error) || error.errors.length === 0) {
     return [getErrorMessage(error)]
   }
 
@@ -234,32 +148,14 @@ export function getCombinedErrorMessage(error: unknown): string {
  * Extract error code from any error type
  */
 export function getErrorCode(error: unknown): string | undefined {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string'
-  ) {
-    return (error as { code: string }).code
-  }
-  
-  return undefined
+  return error instanceof KeygenClientError ? error.code : undefined
 }
 
 /**
  * Extract HTTP status from any error type
  */
 export function getErrorStatus(error: unknown): number | undefined {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof (error as { status: unknown }).status === 'number'
-  ) {
-    return (error as { status: number }).status
-  }
-  
-  return undefined
+  return isKeygenApiError(error) || isAuthError(error) ? error.status : undefined
 }
 
 /**
@@ -269,7 +165,7 @@ export function isRetryableError(error: unknown): boolean {
   if (isNetworkError(error)) {
     return true
   }
-  
+
   if (isKeygenApiError(error)) {
     // Retry on server errors, timeout, and rate limiting
     return (
@@ -278,7 +174,7 @@ export function isRetryableError(error: unknown): boolean {
       error.status === HTTP_STATUS.GATEWAY_TIMEOUT
     )
   }
-  
+
   return false
 }
 
@@ -290,11 +186,11 @@ export function shouldShowToast(error: unknown): boolean {
   if (isValidationError(error)) {
     return false
   }
-  
+
   // Don't show toast for 401 errors (handled by auth system)
   if (isUnauthorizedError(error)) {
     return false
   }
-  
+
   return true
 }

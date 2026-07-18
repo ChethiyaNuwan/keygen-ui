@@ -1,93 +1,125 @@
 /**
- * Comprehensive Error Types for Keygen UI
- * Replaces generic unknown/any error handling with proper TypeScript types
+ * Error Types for Keygen UI
+ *
+ * Real `Error` subclasses (not plain object literals) so `instanceof` works,
+ * stack traces are preserved, and `console.error` renders them usefully.
  */
 
-// Base error interface
-export interface BaseError {
-  message: string
+export interface ErrorSource {
+  pointer?: string
+  parameter?: string
+}
+
+export interface KeygenApiErrorDetail {
+  id?: string
+  status?: string
   code?: string
-  timestamp?: string
+  title: string
+  detail: string
+  source?: ErrorSource
+  links?: Record<string, string>
 }
 
-// Keygen API Error (from Keygen API responses)
-export interface KeygenApiError extends BaseError {
-  status: number
-  title?: string
-  detail?: string
-  source?: {
-    pointer?: string
-    parameter?: string
+/** Common base for every error this app throws itself (not third-party/DOM errors). */
+export abstract class KeygenClientError extends Error {
+  readonly code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = this.constructor.name
+    this.code = code
   }
-  errors?: Array<{
-    id?: string
-    status?: string
+}
+
+/** Keygen API error (from a JSON:API `errors` response). */
+export class KeygenApiError extends KeygenClientError {
+  readonly status: number
+  readonly title?: string
+  readonly detail?: string
+  readonly source?: ErrorSource
+  readonly errors: KeygenApiErrorDetail[]
+
+  constructor(params: {
+    message: string
+    status: number
     code?: string
-    title: string
-    detail: string
-    source?: {
-      pointer?: string
-      parameter?: string
+    title?: string
+    detail?: string
+    source?: ErrorSource
+    errors?: KeygenApiErrorDetail[]
+  }) {
+    super(params.message, params.code)
+    this.status = params.status
+    this.title = params.title
+    this.detail = params.detail
+    this.source = params.source
+    this.errors = params.errors ?? []
+  }
+}
+
+/** Network/connection failure — the request never got a response. */
+export class NetworkError extends KeygenClientError {
+  readonly originalError?: Error
+
+  constructor(
+    message: string,
+    code: 'NETWORK_ERROR' | 'TIMEOUT' | 'CONNECTION_REFUSED' | 'ABORT',
+    originalError?: Error
+  ) {
+    super(message, code)
+    this.originalError = originalError
+  }
+}
+
+/** 401/403 responses, surfaced distinctly so the auth system can react to them. */
+export class AuthError extends KeygenClientError {
+  readonly status: 401 | 403
+
+  constructor(
+    message: string,
+    code: 'AUTH_FAILED' | 'TOKEN_EXPIRED' | 'INVALID_CREDENTIALS' | 'UNAUTHORIZED',
+    status: 401 | 403
+  ) {
+    super(message, code)
+    this.status = status
+  }
+}
+
+/** Client-side validation error (not currently thrown anywhere, kept for forms that want it). */
+export class ValidationError extends KeygenClientError {
+  readonly field?: string
+  readonly value?: unknown
+
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'VALIDATION_ERROR')
+    this.field = field
+    this.value = value
+  }
+}
+
+/** The response body wasn't valid JSON. */
+export class ParseError extends KeygenClientError {
+  readonly originalError?: Error
+
+  constructor(message: string, code: 'PARSE_ERROR' | 'JSON_ERROR', originalError?: Error) {
+    super(message, code)
+    this.originalError = originalError
+  }
+}
+
+/** Catch-all for anything else the client throws. */
+export class AppError extends KeygenClientError {
+  readonly originalError?: Error
+
+  constructor(message: string, originalError?: Error) {
+    super(message, 'APP_ERROR')
+    this.originalError = originalError
+    // Preserve the original stack (this constructor's own frame isn't useful
+    // for debugging a wrapped error) when we have one to fall back on.
+    if (originalError?.stack) {
+      this.stack = originalError.stack
     }
-    links?: Record<string, string>
-  }>
-}
-
-// Network/Connection Errors
-export interface NetworkError extends BaseError {
-  code: 'NETWORK_ERROR' | 'TIMEOUT' | 'CONNECTION_REFUSED' | 'ABORT'
-  originalError?: Error
-}
-
-// Authentication Errors
-export interface AuthError extends BaseError {
-  code: 'AUTH_FAILED' | 'TOKEN_EXPIRED' | 'INVALID_CREDENTIALS' | 'UNAUTHORIZED'
-  status: 401 | 403
-}
-
-// Validation Errors (client-side)
-export interface ValidationError extends BaseError {
-  code: 'VALIDATION_ERROR'
-  field?: string
-  value?: unknown
-}
-
-// Parse/JSON Errors
-export interface ParseError extends BaseError {
-  code: 'PARSE_ERROR' | 'JSON_ERROR'
-  originalError?: Error
-}
-
-// Generic Application Error
-export interface AppError extends BaseError {
-  code: 'APP_ERROR'
-  stack?: string
-}
-
-// Union type of all possible errors
-export type ApplicationError = 
-  | KeygenApiError 
-  | NetworkError 
-  | AuthError 
-  | ValidationError 
-  | ParseError 
-  | AppError
-  | Error // Standard JavaScript Error
-
-// Error response from API (follows Keygen API format)
-export interface ErrorResponse {
-  errors: Array<{
-    id?: string
-    status?: string
-    code?: string
-    title: string
-    detail: string
-    source?: {
-      pointer?: string
-      parameter?: string
-    }
-    links?: Record<string, string>
-  }>
+  }
 }
 
 // HTTP Status Code mappings
@@ -113,20 +145,20 @@ export const ERROR_CODES = {
   TIMEOUT: 'TIMEOUT',
   CONNECTION_REFUSED: 'CONNECTION_REFUSED',
   ABORT: 'ABORT',
-  
+
   // Authentication
   AUTH_FAILED: 'AUTH_FAILED',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   UNAUTHORIZED: 'UNAUTHORIZED',
-  
+
   // Validation
   VALIDATION_ERROR: 'VALIDATION_ERROR',
-  
+
   // Parsing
   PARSE_ERROR: 'PARSE_ERROR',
   JSON_ERROR: 'JSON_ERROR',
-  
+
   // Application
   APP_ERROR: 'APP_ERROR',
 } as const
