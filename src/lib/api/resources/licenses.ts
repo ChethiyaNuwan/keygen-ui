@@ -7,6 +7,7 @@ import {
   Machine,
   Entitlement,
   User,
+  Token,
   KeygenResponse,
   KeygenListResponse,
 } from '@/lib/types/keygen';
@@ -220,17 +221,26 @@ export class LicenseResource {
   /**
    * Generate activation token for license
    */
-  async generateActivationToken(id: string, ttl = 3600): Promise<KeygenResponse<unknown>> {
+  async generateActivationToken(id: string, options: {
+    ttl?: number;
+    name?: string;
+    maxActivations?: number;
+    maxDeactivations?: number;
+  } = {}): Promise<KeygenResponse<Token>> {
+    const ttl = options.ttl ?? 3600;
     const body = {
       data: {
         type: 'tokens',
         attributes: {
           expiry: new Date(Date.now() + ttl * 1000).toISOString(),
+          ...(options.name && { name: options.name }),
+          ...(options.maxActivations !== undefined && { maxActivations: options.maxActivations }),
+          ...(options.maxDeactivations !== undefined && { maxDeactivations: options.maxDeactivations }),
         },
       },
     };
 
-    return this.client.request(`licenses/${id}/tokens`, {
+    return this.client.request<Token>(`licenses/${id}/tokens`, {
       method: 'POST',
       body,
     });

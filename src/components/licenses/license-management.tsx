@@ -60,6 +60,7 @@ import { CreateLicenseDialog } from './create-license-dialog'
 import { DeleteLicenseDialog } from './delete-license-dialog'
 import { EditLicenseDialog } from './edit-license-dialog'
 import { LicenseDetailsDialog } from './license-details-dialog'
+import { GenerateActivationTokenDialog } from './generate-activation-token-dialog'
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 const DEFAULT_PAGE_SIZE = 25
@@ -82,6 +83,7 @@ export function LicenseManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false)
   const [selectedLicense, setSelectedLicense] = useState<License | null>(null)
 
   // Pagination state
@@ -315,19 +317,9 @@ export function LicenseManagement() {
     setDetailsDialogOpen(true)
   }
 
-  const handleGenerateToken = async (license: License) => {
-    try {
-      const response = await api.licenses.generateActivationToken(license.id)
-      const tokenData = response.data as { attributes?: { token?: string } }
-      if (tokenData?.attributes?.token) {
-        await navigator.clipboard.writeText(tokenData.attributes.token)
-        toast.success('Activation token copied to clipboard')
-      } else {
-        toast.error('Failed to generate activation token')
-      }
-    } catch (error: unknown) {
-      handleCrudError(error, 'create', 'Activation token', { customMessage: 'Failed to generate activation token' })
-    }
+  const handleGenerateToken = (license: License) => {
+    setSelectedLicense(license)
+    setTokenDialogOpen(true)
   }
 
   const clearSearch = () => {
@@ -778,6 +770,15 @@ export function LicenseManagement() {
           open={detailsDialogOpen}
           onOpenChange={setDetailsDialogOpen}
           onLicenseUpdated={handleRefresh}
+        />
+      )}
+
+      {/* Generate Activation Token Dialog */}
+      {selectedLicense && (
+        <GenerateActivationTokenDialog
+          license={selectedLicense}
+          open={tokenDialogOpen}
+          onOpenChange={setTokenDialogOpen}
         />
       )}
     </div>
