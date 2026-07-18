@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleCrudError } from '@/lib/utils/error-handling'
 
@@ -34,11 +35,14 @@ export function EditWebhookDialog({
     subscriptions: [] as string[],
     enabled: true
   })
+  const [customEvent, setCustomEvent] = useState('')
 
   const api = getKeygenApi()
 
   // Group events by resource for better organization
   const eventGroups = api.webhooks.getEventsByCategory()
+  const knownEvents = new Set(api.webhooks.getAvailableEvents())
+  const customSubscriptions = formData.subscriptions.filter((event) => !knownEvents.has(event))
 
   // Initialize form data when webhook changes
   useEffect(() => {
@@ -114,8 +118,19 @@ export function EditWebhookDialog({
   }
 
   const isGroupPartiallySelected = (groupEvents: string[]) => {
-    return groupEvents.some(event => formData.subscriptions.includes(event)) && 
+    return groupEvents.some(event => formData.subscriptions.includes(event)) &&
            !isGroupFullySelected(groupEvents)
+  }
+
+  const handleAddCustomEvent = () => {
+    const event = customEvent.trim()
+    if (!event || formData.subscriptions.includes(event)) return
+    setFormData(prev => ({ ...prev, subscriptions: [...prev.subscriptions, event] }))
+    setCustomEvent('')
+  }
+
+  const handleRemoveCustomEvent = (event: string) => {
+    setFormData(prev => ({ ...prev, subscriptions: prev.subscriptions.filter(e => e !== event) }))
   }
 
   return (
@@ -224,6 +239,47 @@ export function EditWebhookDialog({
                         )}
                       </div>
                     ))}
+                    <Separator className="my-4" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Custom Event</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Not seeing an event you need? Add it by name — useful for events added to
+                        Keygen after this list was last updated.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="e.g. license.custom-event"
+                          value={customEvent}
+                          onChange={(e) => setCustomEvent(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleAddCustomEvent()
+                            }
+                          }}
+                          className="font-mono text-sm"
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={handleAddCustomEvent}>
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {customSubscriptions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {customSubscriptions.map((event) => (
+                            <Badge key={event} variant="secondary" className="gap-1 font-mono text-xs">
+                              {event}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCustomEvent(event)}
+                                className="hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                 </div>
               </CardContent>
             </Card>
