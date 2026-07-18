@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getKeygenApi } from '@/lib/api'
-import { License } from '@/lib/types/keygen'
+import { License, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,10 +44,6 @@ import {
   Edit,
   Copy,
   Download,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   X,
   Loader2,
   BadgeCheck,
@@ -58,28 +53,20 @@ import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { PaginationControls } from '@/components/shared/pagination-controls'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePaginatedList } from '@/hooks/use-paginated-list'
 import { CreateLicenseDialog } from './create-license-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { EditLicenseDialog } from './edit-license-dialog'
 import { LicenseDetailsDialog } from './license-details-dialog'
 import { GenerateActivationTokenDialog } from './generate-activation-token-dialog'
 
-const PAGE_SIZES = [10, 25, 50, 100] as const
-const DEFAULT_PAGE_SIZE = 25
 const SEARCH_DEBOUNCE_MS = 300
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay)
-    return () => clearTimeout(timer)
-  }, [value, delay])
-  return debouncedValue
-}
-
 export function LicenseManagement() {
-  const [licenses, setLicenses] = useState<License[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -88,11 +75,6 @@ export function LicenseManagement() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false)
   const [selectedLicense, setSelectedLicense] = useState<License | null>(null)
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
-  const [totalCount, setTotalCount] = useState(0)
 
   // Search state
   const [isSearchMode, setIsSearchMode] = useState(false)
@@ -149,50 +131,49 @@ export function LicenseManagement() {
     return query
   }, [])
 
-  // Unified data loader: handles both search and browse modes
-  const loadData = useCallback(async () => {
+  // Unified fetcher: handles both search and browse modes
+  const fetchLicenses = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<License>> => {
     try {
-      setLoading(true)
       const searchQuery = debouncedSearch ? buildSearchQuery(debouncedSearch) : null
       const hasValidSearch = searchQuery && Object.keys(searchQuery).length > 0
 
       if (hasValidSearch) {
         // Server-side search via POST /search with pagination
         setIsSearchMode(true)
-        const response = await api.search.search<License>({
+        return await api.search.search<License>({
           type: 'licenses',
           query: searchQuery,
           op: 'OR',
-          page: { size: pageSize, number: currentPage },
+          page: { size: pageSize, number: page },
         })
-        setLicenses(response.data || [])
-        setTotalCount(response.meta?.count ?? (response.data?.length || 0))
-      } else {
-        // Normal paginated browsing
-        setIsSearchMode(false)
-        const response = await api.licenses.list({
-          page: { size: pageSize, number: currentPage },
-          ...(statusFilter !== 'all' && { status: statusFilter as License['attributes']['status'] })
-        })
-        setLicenses(response.data || [])
-        setTotalCount(response.meta?.count ?? (response.data?.length || 0))
       }
+
+      // Normal paginated browsing
+      setIsSearchMode(false)
+      return await api.licenses.list({
+        page: { size: pageSize, number: page },
+        ...(statusFilter !== 'all' && { status: statusFilter as License['attributes']['status'] })
+      })
     } catch (error: unknown) {
       handleLoadError(error, 'licenses')
-    } finally {
-      setLoading(false)
+      return { data: [], meta: { count: 0 } }
     }
-  }, [api.licenses, api.search, pageSize, currentPage, statusFilter, debouncedSearch, buildSearchQuery])
+  }, [api.licenses, api.search, statusFilter, debouncedSearch, buildSearchQuery])
 
-  // Load data whenever dependencies change
-  useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  // Reset to page 1 when filters or search change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [statusFilter, pageSize, debouncedSearch])
+  const {
+    data: licenses,
+    loading,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalCount,
+    totalPages,
+    reload: loadData,
+  } = usePaginatedList<License>({
+    fetcher: fetchLicenses,
+    resetOn: [statusFilter, debouncedSearch],
+  })
 
   // Account-wide active/expired counts for the stats cards. These are separate
   // queries (limit: 1, status filter) so the numbers reflect all licenses, not
@@ -217,13 +198,6 @@ export function LicenseManagement() {
   useEffect(() => {
     loadAccountStats()
   }, [loadAccountStats])
-
-  // Display data
-  const displayLicenses = licenses
-  const displayTotalCount = totalCount
-  const totalPages = Math.ceil(totalCount / pageSize)
-
-  const isLoading = loading
 
   // Refresh handler — used after CRUD operations
   const handleRefresh = useCallback(async () => {
@@ -338,27 +312,6 @@ export function LicenseManagement() {
     setSearchTerm('')
     setCurrentPage(1)
     searchInputRef.current?.focus()
-  }
-
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
-  }
-
-  // Generate page numbers to display
-  const getPageNumbers = () => {
-    const pages: (number | 'ellipsis')[] = []
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i)
-    } else {
-      pages.push(1)
-      if (currentPage > 3) pages.push('ellipsis')
-      const start = Math.max(2, currentPage - 1)
-      const end = Math.min(totalPages - 1, currentPage + 1)
-      for (let i = start; i <= end; i++) pages.push(i)
-      if (currentPage < totalPages - 2) pages.push('ellipsis')
-      pages.push(totalPages)
-    }
-    return pages
   }
 
   // Usage has no server-side aggregate — sum from the currently loaded page only.
@@ -504,26 +457,10 @@ export function LicenseManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
-                // Skeleton loading rows
-                Array.from({ length: pageSize > 10 ? 10 : pageSize }).map((_, i) => (
-                  <TableRow key={`skeleton-${i}`}>
-                    <TableCell className="pl-6">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-5 w-40" />
-                        <Skeleton className="h-6 w-6 rounded" />
-                      </div>
-                    </TableCell>
-                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="pr-6"><Skeleton className="h-6 w-6 rounded" /></TableCell>
-                  </TableRow>
-                ))
-              ) : displayLicenses.length > 0 ? (
-                displayLicenses.map((license) => (
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={7} />
+              ) : licenses.length > 0 ? (
+                licenses.map((license) => (
                   <TableRow key={license.id} className="group">
                     <TableCell className="pl-6">
                       <div className="flex items-center gap-2">
@@ -630,124 +567,30 @@ export function LicenseManagement() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow>
-                  <TableCell colSpan={7}>
-                    <div className="flex items-center justify-center h-32">
-                      <div className="text-center">
-                        <Key className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                        <div className="text-sm font-medium">No licenses found</div>
-                        <div className="text-xs text-muted-foreground">
-                          {searchTerm || statusFilter !== 'all'
-                            ? 'Try adjusting your search or filters'
-                            : 'Get started by creating your first license'
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <EmptyState
+                  icon={Key}
+                  colSpan={7}
+                  title="No licenses found"
+                  description={
+                    searchTerm || statusFilter !== 'all'
+                      ? 'Try adjusting your search or filters'
+                      : 'Get started by creating your first license'
+                  }
+                />
               )}
             </TableBody>
           </Table>
 
           {/* Pagination */}
-          {!isLoading && displayTotalCount > 0 && (
-            <div className="flex items-center justify-between border-t px-6 pt-4 mt-2">
-              {/* Left: showing range + page size */}
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span>
-                  Showing{' '}
-                  <span className="font-medium text-foreground">
-                    {Math.min((currentPage - 1) * pageSize + 1, displayTotalCount)}
-                  </span>
-                  {' '}&ndash;{' '}
-                  <span className="font-medium text-foreground">
-                    {Math.min(currentPage * pageSize, displayTotalCount)}
-                  </span>
-                  {' '}of{' '}
-                  <span className="font-medium text-foreground">{displayTotalCount}</span>
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs">Rows</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={(v) => setPageSize(Number(v))}
-                  >
-                    <SelectTrigger className="h-7 w-[62px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAGE_SIZES.map(size => (
-                        <SelectItem key={size} value={String(size)}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Right: page navigation */}
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={currentPage === 1}
-                    onClick={() => goToPage(1)}
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={currentPage === 1}
-                    onClick={() => goToPage(currentPage - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-
-                  {getPageNumbers().map((page, idx) =>
-                    page === 'ellipsis' ? (
-                      <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
-                        ...
-                      </span>
-                    ) : (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        className="h-8 w-8 p-0 text-xs"
-                        onClick={() => goToPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    )
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={currentPage === totalPages}
-                    onClick={() => goToPage(currentPage + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={currentPage === totalPages}
-                    onClick={() => goToPage(totalPages)}
-                  >
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           )}
         </CardContent>
       </Card>
