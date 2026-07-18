@@ -1,5 +1,5 @@
 import { KeygenClient } from '../client';
-import { User, UserFilters, KeygenResponse } from '@/lib/types/keygen';
+import { User, UserFilters, License, Machine, KeygenResponse, KeygenListResponse } from '@/lib/types/keygen';
 import { setGroup } from './relationships';
 
 export class UserResource {
@@ -8,7 +8,7 @@ export class UserResource {
   /**
    * List all users
    */
-  async list(filters: UserFilters = {}): Promise<KeygenResponse<User[]>> {
+  async list(filters: UserFilters = {}): Promise<KeygenListResponse<User>> {
     const params = {
       ...this.client.buildPaginationParams(filters),
     };
@@ -183,15 +183,15 @@ export class UserResource {
   /**
    * Get user licenses
    */
-  async getLicenses(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`users/${id}/licenses`);
+  async getLicenses(id: string): Promise<KeygenListResponse<License>> {
+    return this.client.request<License[]>(`users/${id}/licenses`);
   }
 
   /**
    * Get user machines
    */
-  async getMachines(id: string): Promise<KeygenResponse<unknown[]>> {
-    return this.client.request(`users/${id}/machines`);
+  async getMachines(id: string): Promise<KeygenListResponse<Machine>> {
+    return this.client.request<Machine[]>(`users/${id}/machines`);
   }
 
   /**
