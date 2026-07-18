@@ -45,22 +45,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 
 interface LicenseDetailsDialogProps {
   license: License
   open: boolean
   onOpenChange: (open: boolean) => void
   onLicenseUpdated: () => void
-}
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function relationshipId(license: License, key: string): string | undefined {
@@ -424,12 +415,12 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
                   <div>
                     <Label className="text-muted-foreground">Expiry</Label>
                     <p className="text-sm mt-1">
-                      {license.attributes.expiry ? formatDate(license.attributes.expiry) : 'Never'}
+                      {license.attributes.expiry ? formatDateTime(license.attributes.expiry) : 'Never'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Created</Label>
-                    <p className="text-sm mt-1">{formatDate(license.attributes.created)}</p>
+                    <p className="text-sm mt-1">{formatDateTime(license.attributes.created)}</p>
                   </div>
                 </CardContent>
               </Card>

@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Search, MoreHorizontal, Shield, Trash2, Edit, Eye, Code } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
 import { CreateEntitlementDialog } from './create-entitlement-dialog'
 import { EditEntitlementDialog } from './edit-entitlement-dialog'
 import { DeleteEntitlementDialog } from './delete-entitlement-dialog'
@@ -84,14 +85,6 @@ export function EntitlementManagement() {
     entitlement.attributes.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     entitlement.attributes.code.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
 
   return (
     <div className="space-y-6 px-4 lg:px-6">

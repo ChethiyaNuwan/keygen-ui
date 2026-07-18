@@ -26,6 +26,7 @@ import {
 import { KeyRound, MoreVertical, RefreshCcw, Trash2, Copy, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 export function TokenManagement() {
@@ -53,8 +54,6 @@ export function TokenManagement() {
   useEffect(() => {
     loadTokens()
   }, [loadTokens])
-
-  const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : 'Never')
 
   const handleRegenerate = async (token: Token) => {
     try {
@@ -161,8 +160,8 @@ export function TokenManagement() {
                   <TableCell>
                     <Badge variant="outline">{token.attributes.kind}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(token.attributes.created)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(token.attributes.expiry)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDateTime(token.attributes.created)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDateTime(token.attributes.expiry, 'Never')}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

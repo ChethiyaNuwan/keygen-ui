@@ -10,22 +10,13 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { formatDateTime } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 
 interface RequestLogDetailsSheetProps {
   log: RequestLog | null
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
 }
 
 function formatJson(value: unknown): string {
@@ -38,10 +29,10 @@ function formatJson(value: unknown): string {
   }
 }
 
-function statusVariant(status: number): 'default' | 'destructive' | 'secondary' {
-  if (status >= 500) return 'destructive'
-  if (status >= 400) return 'secondary'
-  return 'default'
+function statusTone(status: number): StatusTone {
+  if (status >= 500) return 'danger'
+  if (status >= 400) return 'warning'
+  return 'success'
 }
 
 export function RequestLogDetailsSheet({ log, open, onOpenChange }: RequestLogDetailsSheetProps) {
@@ -56,10 +47,10 @@ export function RequestLogDetailsSheet({ log, open, onOpenChange }: RequestLogDe
           <SheetDescription>
             {log && (
               <>
-                <Badge variant={statusVariant(log.attributes.status)} className="mr-2">
+                <StatusBadge tone={statusTone(log.attributes.status)} className="mr-2">
                   {log.attributes.status}
-                </Badge>
-                {formatDate(log.attributes.created)}
+                </StatusBadge>
+                {formatDateTime(log.attributes.created)}
                 {log.attributes.ip ? ` · ${log.attributes.ip}` : ''}
               </>
             )}

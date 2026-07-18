@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Webhook as WebhookIcon, Calendar, Info, Activity, TestTube, Copy, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 
 interface WebhookDetailsDialogProps {
@@ -116,15 +117,6 @@ export function WebhookDetailsDialog({
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   const groupEventsByResource = (events: string[]) => {
     const groups: Record<string, string[]> = {}
@@ -219,14 +211,14 @@ export function WebhookDetailsDialog({
                     <label className="text-sm font-medium text-muted-foreground">Created</label>
                     <p className="text-sm flex items-center gap-2 mt-1">
                       <Calendar className="h-4 w-4" />
-                      {formatDate(webhook.attributes.created)}
+                      {formatDateTime(webhook.attributes.created)}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Updated</label>
                     <p className="text-sm flex items-center gap-2 mt-1">
                       <Calendar className="h-4 w-4" />
-                      {formatDate(webhook.attributes.updated)}
+                      {formatDateTime(webhook.attributes.updated)}
                     </p>
                   </div>
                 </div>
@@ -307,7 +299,7 @@ export function WebhookDetailsDialog({
                             {delivery.attributes?.event || 'Unknown Event'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {delivery.attributes?.created ? formatDate(delivery.attributes.created) : 'Unknown time'}
+                            {delivery.attributes?.created ? formatDateTime(delivery.attributes.created) : 'Unknown time'}
                             {code ? ` · HTTP ${code}` : ''}
                           </p>
                         </div>

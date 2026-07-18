@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Plus, Search, MoreHorizontal, Users, Trash2, Edit, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
 import { CreateGroupDialog } from './create-group-dialog'
 import { EditGroupDialog } from './edit-group-dialog'
 import { DeleteGroupDialog } from './delete-group-dialog'
@@ -84,13 +85,6 @@ export function GroupManagement() {
     group.attributes.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
 
   return (
     <div className="space-y-6 px-4 lg:px-6">

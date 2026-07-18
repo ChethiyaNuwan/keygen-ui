@@ -19,24 +19,16 @@ import {
 } from '@/components/ui/table'
 import { ChevronLeft, ChevronRight, Eye, History, Activity } from 'lucide-react'
 import { handleLoadError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { RequestLogDetailsSheet } from './request-log-details-sheet'
 
 const PAGE_SIZE = 25
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function statusVariant(status: number): 'default' | 'destructive' | 'secondary' {
-  if (status >= 500) return 'destructive'
-  if (status >= 400) return 'secondary'
-  return 'default'
+function statusTone(status: number): StatusTone {
+  if (status >= 500) return 'danger'
+  if (status >= 400) return 'warning'
+  return 'success'
 }
 
 export function LogManagement() {
@@ -220,7 +212,7 @@ export function LogManagement() {
                           )}
                         </TableCell>
                         <TableCell className="pr-6 text-muted-foreground">
-                          {formatDate(log.attributes.created)}
+                          {formatDateTime(log.attributes.created)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -334,15 +326,15 @@ export function LogManagement() {
                           <code className="text-xs truncate block">{log.attributes.url}</code>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant(log.attributes.status)}>
+                          <StatusBadge tone={statusTone(log.attributes.status)}>
                             {log.attributes.status}
-                          </Badge>
+                          </StatusBadge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {log.attributes.ip || '—'}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {formatDate(log.attributes.created)}
+                          {formatDateTime(log.attributes.created)}
                         </TableCell>
                         <TableCell className="pr-6">
                           <Button variant="ghost" size="sm" onClick={() => handleViewRequestLog(log)}>

@@ -45,6 +45,7 @@ import {
 } from 'lucide-react'
 // No direct toasts here; using centralized error handlers where needed
 import { handleLoadError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
 import { CreateProductDialog } from './create-product-dialog'
 import { EditProductDialog } from './edit-product-dialog'
 import { DeleteProductDialog } from './delete-product-dialog'
@@ -106,14 +107,6 @@ export function ProductManagement() {
       case 'CLOSED': return <Lock className="h-3 w-3" />
       default: return <Package className="h-3 w-3" />
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   const handleDeleteProduct = (product: Product) => {

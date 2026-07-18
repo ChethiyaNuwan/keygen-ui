@@ -17,6 +17,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { handleCrudError, handleFormError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 
 export function ProfilePage() {
   const { user, refresh } = useAuth()
@@ -37,11 +38,6 @@ export function ProfilePage() {
   const [savingPassword, setSavingPassword] = useState(false)
 
   if (!user) return null
-
-  const formatDate = (value?: string) => {
-    if (!value) return '—'
-    return new Date(value).toLocaleString()
-  }
 
   const handleSaveDetails = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,11 +170,11 @@ export function ProfilePage() {
             </div>
             <div className="flex items-center justify-between md:justify-start md:gap-3">
               <dt className="text-muted-foreground">Last signed in</dt>
-              <dd>{formatDate(user.attributes.lastSignedInAt)}</dd>
+              <dd>{formatDateTime(user.attributes.lastSignedInAt)}</dd>
             </div>
             <div className="flex items-center justify-between md:justify-start md:gap-3">
               <dt className="text-muted-foreground">Member since</dt>
-              <dd>{formatDate(user.attributes.created)}</dd>
+              <dd>{formatDateTime(user.attributes.created)}</dd>
             </div>
           </dl>
         </CardContent>

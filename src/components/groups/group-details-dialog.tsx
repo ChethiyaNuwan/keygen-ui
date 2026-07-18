@@ -13,22 +13,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Users, KeyRound, Calendar, Info, ShieldCheck, Trash2 } from 'lucide-react'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 import { toast } from 'sonner'
 
 interface GroupDetailsDialogProps {
   group: Group
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 export function GroupDetailsDialog({ group, open, onOpenChange }: GroupDetailsDialogProps) {
@@ -272,14 +263,14 @@ export function GroupDetailsDialog({ group, open, onOpenChange }: GroupDetailsDi
                     <label className="text-sm font-medium text-muted-foreground">Created</label>
                     <p className="text-sm flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {formatDate(group.attributes.created)}
+                      {formatDateTime(group.attributes.created)}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Updated</label>
                     <p className="text-sm flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {formatDate(group.attributes.updated)}
+                      {formatDateTime(group.attributes.updated)}
                     </p>
                   </div>
                 </div>

@@ -6,8 +6,7 @@ import { Machine } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -46,6 +45,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { ActivateMachineDialog } from './activate-machine-dialog'
 import { MachineDetailsDialog } from './machine-details-dialog'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
@@ -95,12 +96,11 @@ export function MachineManagement() {
     return matchesSearch && matchesStatus
   })
 
-  const getStatusColor = (heartbeatStatus: string) => {
+  const getHeartbeatTone = (heartbeatStatus: string): StatusTone => {
     switch (heartbeatStatus) {
-      case 'alive': return 'bg-green-100 text-green-800 border-green-200'
-      case 'dead': return 'bg-red-100 text-red-800 border-red-200'
-      case 'not-started': return 'bg-gray-100 text-gray-800 border-gray-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'alive': return 'success'
+      case 'dead': return 'danger'
+      default: return 'neutral'
     }
   }
 
@@ -111,16 +111,6 @@ export function MachineManagement() {
       case 'not-started': return <Activity className="h-3 w-3" />
       default: return <Activity className="h-3 w-3" />
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
   }
 
   const handleDeleteMachine = (machine: Machine) => {
@@ -317,13 +307,12 @@ export function MachineManagement() {
                       {machine.attributes.name || 'Unnamed Machine'}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`${getStatusColor(machine.attributes.heartbeatStatus)} flex items-center gap-1 w-fit`}
+                      <StatusBadge
+                        tone={getHeartbeatTone(machine.attributes.heartbeatStatus)}
+                        icon={getStatusIcon(machine.attributes.heartbeatStatus)}
                       >
-                        {getStatusIcon(machine.attributes.heartbeatStatus)}
                         {machine.attributes.heartbeatStatus?.replace('_', ' ').toLowerCase()}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell>
                       {machine.attributes.ip || 'Unknown'}
@@ -333,12 +322,12 @@ export function MachineManagement() {
                     </TableCell>
                     <TableCell>
                       {machine.attributes.lastHeartbeat 
-                        ? formatDate(machine.attributes.lastHeartbeat)
+                        ? formatDateTime(machine.attributes.lastHeartbeat)
                         : 'Never'
                       }
                     </TableCell>
                     <TableCell>
-                      {formatDate(machine.attributes.created)}
+                      {formatDateTime(machine.attributes.created)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

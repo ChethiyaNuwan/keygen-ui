@@ -56,6 +56,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { CreateLicenseDialog } from './create-license-dialog'
 import { DeleteLicenseDialog } from './delete-license-dialog'
 import { EditLicenseDialog } from './edit-license-dialog'
@@ -227,22 +229,13 @@ export function LicenseManagement() {
     await Promise.all([loadData(), loadAccountStats()])
   }, [loadData, loadAccountStats])
 
-  const getStatusColor = (status: string) => {
+  const getLicenseStatusTone = (status: string): StatusTone => {
     switch (status.toLowerCase()) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200'
-      case 'suspended': return 'bg-orange-100 text-orange-800 border-orange-200'
-      case 'expired': return 'bg-red-100 text-red-800 border-red-200'
-      case 'inactive': return 'bg-gray-100 text-gray-800 border-gray-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'active': return 'success'
+      case 'suspended': return 'warning'
+      case 'expired': return 'danger'
+      default: return 'neutral'
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   /**
@@ -534,12 +527,9 @@ export function LicenseManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={getStatusColor(license.attributes.status)}
-                      >
+                      <StatusBadge tone={getLicenseStatusTone(license.attributes.status)}>
                         {license.attributes.status}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell>
                       <span className="tabular-nums">

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Shield, KeyRound, Calendar, Info, Code } from 'lucide-react'
+import { formatDateTime } from '@/lib/utils/format'
 // toast not needed; using centralized error handlers
 
 interface EntitlementDetailsDialogProps {
@@ -18,16 +19,6 @@ export function EntitlementDetailsDialog({
   open,
   onOpenChange
 }: EntitlementDetailsDialogProps) {
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
@@ -77,14 +68,14 @@ export function EntitlementDetailsDialog({
                   <label className="text-sm font-medium text-muted-foreground">Created</label>
                   <p className="text-sm flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    {formatDate(entitlement.attributes.created)}
+                    {formatDateTime(entitlement.attributes.created)}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Updated</label>
                   <p className="text-sm flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    {formatDate(entitlement.attributes.updated)}
+                    {formatDateTime(entitlement.attributes.updated)}
                   </p>
                 </div>
               </div>

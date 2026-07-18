@@ -26,6 +26,7 @@ import { getKeygenApi } from '@/lib/api'
 import { Product, Token } from '@/lib/types/keygen'
 import { toast } from 'sonner'
 import { handleCrudError, handleLoadError } from '@/lib/utils/error-handling'
+import { formatDateTime } from '@/lib/utils/format'
 
 interface ProductTokensDialogProps {
   product: Product | null
@@ -98,8 +99,6 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
     await navigator.clipboard.writeText(newSecret)
     toast.success('Copied to clipboard')
   }
-
-  const formatDate = (value?: string) => (value ? new Date(value).toLocaleString() : '—')
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -181,10 +180,8 @@ export function ProductTokensDialog({ product, open, onOpenChange }: ProductToke
                       <span className="text-muted-foreground">Unnamed</span>
                     )}
                   </TableCell>
-                  <TableCell>{formatDate(token.attributes.created)}</TableCell>
-                  <TableCell>
-                    {token.attributes.expiry ? formatDate(token.attributes.expiry) : 'Never'}
-                  </TableCell>
+                  <TableCell>{formatDateTime(token.attributes.created)}</TableCell>
+                  <TableCell>{formatDateTime(token.attributes.expiry, 'Never')}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

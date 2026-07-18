@@ -49,6 +49,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { CreateUserDialog } from './create-user-dialog'
 import { EditUserDialog } from './edit-user-dialog'
 import { UserDetailsDialog } from './user-details-dialog'
@@ -98,24 +100,12 @@ export function UserManagement() {
     return matchesSearch && matchesStatus
   })
 
-  const getStatusColor = (banned: boolean) => {
-    return banned 
-      ? 'bg-red-100 text-red-800 border-red-200'
-      : 'bg-green-100 text-green-800 border-green-200'
-  }
+  const getBannedTone = (banned: boolean): StatusTone => (banned ? 'danger' : 'success')
 
   const getStatusIcon = (banned: boolean) => {
-    return banned 
+    return banned
       ? <Ban className="h-3 w-3" />
       : <CheckCircle className="h-3 w-3" />
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   const handleBanUser = (user: User) => {
@@ -340,13 +330,12 @@ export function UserManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`${getStatusColor(user.attributes.banned || false)} flex items-center gap-1 w-fit`}
+                      <StatusBadge
+                        tone={getBannedTone(user.attributes.banned || false)}
+                        icon={getStatusIcon(user.attributes.banned || false)}
                       >
-                        {getStatusIcon(user.attributes.banned || false)}
                         {user.attributes.banned ? 'Banned' : 'Active'}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

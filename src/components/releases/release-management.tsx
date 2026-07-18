@@ -44,6 +44,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
+import { formatDate } from '@/lib/utils/format'
+import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
 import { CreateReleaseDialog } from './create-release-dialog'
 import { EditReleaseDialog } from './edit-release-dialog'
 import { DeleteReleaseDialog } from './delete-release-dialog'
@@ -130,12 +132,12 @@ export function ReleaseManagement() {
     return matchesSearch && matchesProduct && matchesChannel
   })
 
-  const getStatusColor = (status: ReleaseStatus) => {
+  const getReleaseStatusTone = (status: ReleaseStatus): StatusTone => {
     switch (status) {
-      case 'PUBLISHED': return 'bg-green-100 text-green-800 border-green-200'
-      case 'DRAFT': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'YANKED': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'PUBLISHED': return 'success'
+      case 'DRAFT': return 'warning'
+      case 'YANKED': return 'danger'
+      default: return 'neutral'
     }
   }
 
@@ -146,14 +148,6 @@ export function ReleaseManagement() {
       case 'beta': return 'bg-orange-100 text-orange-800 border-orange-200'
       default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
   }
 
   const handlePublish = async (release: Release) => {
@@ -346,12 +340,9 @@ export function ReleaseManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`${getStatusColor(release.attributes.status)} w-fit`}
-                      >
+                      <StatusBadge tone={getReleaseStatusTone(release.attributes.status)} className="w-fit">
                         {release.attributes.status.toLowerCase()}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell>{formatDate(release.attributes.created)}</TableCell>
                     <TableCell>
