@@ -384,6 +384,34 @@ export interface SecondFactor extends KeygenResource {
   };
 }
 
+// Account — this deployment's own account record (exactly one in
+// singleplayer mode). The Ed25519/RSA2048/ECDSA public keys used to verify
+// signed license files offline live in `meta`, not `attributes` — verified
+// live against GET /accounts/:id (account_serializer.rb puts them in a
+// `meta do...end` block). Each key arrives base64-encoded; decoding
+// `meta.keys.ed25519` yields the 64-char hex string directly, ready to use
+// as KEYGEN_PUBLIC_KEY — no further byte/hex conversion needed.
+export interface Account extends KeygenResource {
+  type: 'accounts';
+  attributes: {
+    name?: string;
+    slug?: string;
+    apiVersion?: string;
+    status?: string;
+    protected?: boolean;
+    created: string;
+    updated: string;
+  };
+  meta?: {
+    publicKey?: string;
+    keys?: {
+      ed25519?: string;
+      rsa2048?: string;
+      ecdsa?: string;
+    };
+  };
+}
+
 // Token
 export interface Token extends KeygenResource {
   type: 'tokens';

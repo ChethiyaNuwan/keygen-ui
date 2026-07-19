@@ -34,8 +34,8 @@ import {
   Trash2,
   ExternalLink,
   KeyRound,
+  Copy,
 } from 'lucide-react'
-// No direct toasts here; using centralized error handlers where needed
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
 import { toast } from 'sonner'
@@ -164,6 +164,11 @@ export function ProductManagement() {
   const handleEditProduct = (product: Product) => {
     setEditProduct(product)
     setEditDialogOpen(true)
+  }
+
+  const copyId = (id: string) => {
+    navigator.clipboard.writeText(id)
+    toast.success('Product ID copied to clipboard')
   }
 
   return (
@@ -349,6 +354,10 @@ export function ProductManagement() {
                           <DropdownMenuItem onClick={() => handleEditProduct(product)}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit Product
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => copyId(product.id)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy ID
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleTokens(product)}>
                             <KeyRound className="mr-2 h-4 w-4" />

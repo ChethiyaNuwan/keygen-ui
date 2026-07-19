@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Package } from 'lucide-react'
+import { Package, Copy } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Product } from '@/lib/types/keygen'
@@ -170,6 +170,28 @@ export function EditProductDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Product ID (Read-only) */}
+            <div className="space-y-2">
+              <Label>Product ID</Label>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-muted rounded-md font-mono text-xs flex-1 truncate">
+                  {product.id}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(product.id)
+                    toast.success('Product ID copied to clipboard')
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
             {/* Basic Information */}
             <div className="space-y-4">
               <h4 className="text-sm font-medium flex items-center gap-2">
