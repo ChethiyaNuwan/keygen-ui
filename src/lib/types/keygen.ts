@@ -98,14 +98,29 @@ export interface License extends KeygenResource {
     // block), so the wire value is uppercase, not lowercase.
     status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'EXPIRING' | 'SUSPENDED' | 'BANNED';
     uses: number;
+    suspended: boolean;
+    version?: string;
     maxUses?: number;
     maxMachines?: number;
+    maxProcesses?: number;
+    maxUsers?: number;
+    maxCores?: number;
+    maxMemory?: number;
+    maxDisk?: number;
     protected: boolean;
     floating: boolean;
     strict: boolean;
     scheme: string;
     encrypted: boolean;
+    requireHeartbeat: boolean;
+    requireCheckIn: boolean;
     expiry?: string;
+    lastValidated?: string;
+    lastCheckIn?: string;
+    nextCheckIn?: string;
+    lastCheckOut?: string;
+    /** EE only, requires `license.entitled?(:permissions)`. */
+    permissions?: string[];
     metadata?: Record<string, unknown>;
     created: string;
     updated: string;
@@ -236,6 +251,8 @@ export interface Policy extends KeygenResource {
     machineLeasingStrategy: PolicyMachineLeasingStrategy;
     processLeasingStrategy: PolicyProcessLeasingStrategy;
     overageStrategy: PolicyOverageStrategy;
+    scheme?: string;
+    encrypted: boolean;
     metadata: Record<string, unknown>;
     created: string;
     updated: string;
@@ -250,6 +267,7 @@ export interface Group extends KeygenResource {
     maxLicenses?: number;
     maxMachines?: number;
     maxUsers?: number;
+    metadata?: Record<string, unknown>;
     created: string;
     updated: string;
   };
@@ -261,6 +279,7 @@ export interface Entitlement extends KeygenResource {
   attributes: {
     name: string;
     code: string;
+    metadata?: Record<string, unknown>;
     created: string;
     updated: string;
   };
@@ -284,6 +303,8 @@ export interface LicenseFile extends KeygenResource {
   attributes: {
     certificate: string;
     algorithm: string;
+    /** Relationships embedded in the certificate, e.g. ['entitlements']. */
+    includes?: string[];
     /** Seconds the file stays valid without contacting the server. */
     ttl: number | null;
     issued: string;
@@ -311,6 +332,7 @@ export interface WebhookEventRecord extends KeygenResource {
   type: 'webhook-events';
   attributes: {
     endpoint: string;
+    apiVersion?: string;
     event: string;
     payload?: string;
     status: 'DELIVERING' | 'DELIVERED' | 'FAILING' | 'FAILED';
@@ -324,12 +346,12 @@ export interface WebhookEventRecord extends KeygenResource {
 // Release metadata — Keygen derives these from uploaded artifacts.
 export interface ReleasePlatform extends KeygenResource {
   type: 'platforms';
-  attributes: { key: string; created: string; updated: string };
+  attributes: { key: string; name?: string; created: string; updated: string };
 }
 
 export interface ReleaseArch extends KeygenResource {
   type: 'arches';
-  attributes: { key: string; created: string; updated: string };
+  attributes: { key: string; name?: string; created: string; updated: string };
 }
 
 export interface ReleaseChannelRecord extends KeygenResource {
@@ -371,6 +393,11 @@ export interface Token extends KeygenResource {
     token?: string;
     name?: string;
     expiry?: string | null;
+    /** Only present when `kind` is an activation token. */
+    maxActivations?: number;
+    activations?: number;
+    maxDeactivations?: number;
+    deactivations?: number;
     permissions?: string[];
     created: string;
     updated: string;
@@ -467,6 +494,7 @@ export interface Component extends KeygenResource {
   attributes: {
     name: string;
     fingerprint: string;
+    metadata?: Record<string, unknown>;
     created: string;
     updated: string;
   };
@@ -490,12 +518,15 @@ export interface RequestLog extends KeygenResource {
     method: string;
     url: string;
     ip?: string;
+    userAgent?: string;
     status: number;
     requestHeaders?: Record<string, string>;
-    responseHeaders?: Record<string, string>;
     requestBody?: unknown;
+    responseSignature?: string;
+    responseHeaders?: Record<string, string>;
     responseBody?: unknown;
     created: string;
+    updated: string;
   };
 }
 
