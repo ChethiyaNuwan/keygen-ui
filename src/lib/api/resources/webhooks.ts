@@ -149,13 +149,12 @@ export class WebhookResource {
    */
   async list(filters: WebhookFilters = {}): Promise<KeygenListResponse<Webhook>> {
     const params: Record<string, unknown> = {};
-    
+
     // Add pagination
     if (filters.limit) params.limit = filters.limit;
     if (filters.page) params.page = filters.page;
-    
+
     // Add filter parameters
-    if (filters.enabled !== undefined) params.enabled = filters.enabled;
     if (filters.url) params.url = filters.url;
     if (filters.subscriptions && filters.subscriptions.length > 0) {
       params.subscriptions = filters.subscriptions.join(',');
@@ -177,7 +176,6 @@ export class WebhookResource {
   async create(webhookData: {
     url: string;
     subscriptions: string[];
-    enabled?: boolean;
   }): Promise<KeygenResponse<Webhook>> {
     const body = {
       data: {
@@ -185,7 +183,6 @@ export class WebhookResource {
         attributes: {
           url: webhookData.url.trim(),
           subscriptions: webhookData.subscriptions,
-          enabled: webhookData.enabled !== false, // Default to true
         },
       },
     };
@@ -202,7 +199,6 @@ export class WebhookResource {
   async update(id: string, updates: {
     url?: string;
     subscriptions?: string[];
-    enabled?: boolean;
   }): Promise<KeygenResponse<Webhook>> {
     const body = {
       data: {
@@ -211,7 +207,6 @@ export class WebhookResource {
         attributes: {
           ...(updates.url && { url: updates.url.trim() }),
           ...(updates.subscriptions && { subscriptions: updates.subscriptions }),
-          ...(updates.enabled !== undefined && { enabled: updates.enabled }),
         },
       },
     };
@@ -229,20 +224,6 @@ export class WebhookResource {
     await this.client.request(`webhook-endpoints/${id}`, {
       method: 'DELETE',
     });
-  }
-
-  /**
-   * Enable a webhook
-   */
-  async enable(id: string): Promise<KeygenResponse<Webhook>> {
-    return this.update(id, { enabled: true });
-  }
-
-  /**
-   * Disable a webhook
-   */
-  async disable(id: string): Promise<KeygenResponse<Webhook>> {
-    return this.update(id, { enabled: false });
   }
 
   /**
@@ -265,11 +246,25 @@ export class WebhookResource {
   }
 
   /**
-   * Get webhook delivery logs
+   * Get delivery logs for one webhook endpoint.
+   *
+   * There is no `/webhook-endpoints/:id/webhook-events` route in keygen-api —
+   * confirmed against routes.rb, webhook_endpoints_controller.rb has no nested
+   * relationships block for events. WebhookEventsController's only has_scope is
+   * `events` (event type), not endpoint, even though the model itself has a real
+   * `belongs_to :webhook_endpoint`. The only account-wide feed is `GET
+   * /webhook-events` (see `listEvents`), so this fetches a recent page of that
+   * and filters client-side by matching `endpoint` (the delivery's target URL)
+   * against this webhook's URL — the best available given the real API surface,
+   * not a perfect scope (a very old delivery outside the fetched page won't show).
    */
-  async getDeliveries(id: string, options: PaginationOptions = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
-    const params = this.client.buildPaginationParams(options);
-    return this.client.request<WebhookEventRecord[]>(`webhook-endpoints/${id}/webhook-events`, { params });
+  async getDeliveries(webhookUrl: string, options: PaginationOptions = {}): Promise<KeygenListResponse<WebhookEventRecord>> {
+    const wanted = options.limit ?? 10;
+    const params = this.client.buildPaginationParams({ limit: Math.max(wanted * 5, 50) });
+    const response = await this.client.request<WebhookEventRecord[]>('webhook-events', { params });
+    const matching = (response.data || []).filter((event) => event.attributes.endpoint === webhookUrl);
+
+    return { ...response, data: matching.slice(0, wanted) };
   }
 
   /**

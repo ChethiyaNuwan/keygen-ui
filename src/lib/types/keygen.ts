@@ -500,13 +500,21 @@ export interface RequestLog extends KeygenResource {
 }
 
 // Webhook
+// Verified against webhook_endpoint_serializer.rb and the model
+// (app/models/webhook_endpoint.rb) — there is no `enabled` column and no
+// per-endpoint signing secret. A webhook endpoint either exists (and fires
+// for its subscriptions) or is deleted; payloads are verified with the
+// account's keypair, the same way license files are, not a value copied
+// from a dashboard. Previously typed with fabricated `enabled`/`signingKey`
+// fields that were sent on every create/update — see the CE integration
+// audit doc.
 export interface Webhook extends KeygenResource {
   type: 'webhook-endpoints';
   attributes: {
     url: string;
     subscriptions: string[];
-    signingKey?: string;
-    enabled: boolean;
+    signatureAlgorithm?: string;
+    apiVersion?: string;
     created: string;
     updated: string;
   };
@@ -614,7 +622,6 @@ export interface RequestLogFilters extends PaginationOptions {
 }
 
 export interface WebhookFilters extends PaginationOptions {
-  enabled?: boolean;
   url?: string;
   subscriptions?: string[];
 }

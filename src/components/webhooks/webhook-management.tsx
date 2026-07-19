@@ -7,9 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Plus, MoreHorizontal, Webhook as WebhookIcon, Trash2, Edit, Eye, Play, Pause, TestTube } from 'lucide-react'
+import { Plus, MoreHorizontal, Webhook as WebhookIcon, Trash2, Edit, Eye, TestTube } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDate } from '@/lib/utils/format'
@@ -29,15 +28,14 @@ export function WebhookManagement() {
   const [deleting, setDeleting] = useState(false)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null)
-  const [togglingWebhooks, setTogglingWebhooks] = useState<Set<string>>(new Set())
 
   const api = getKeygenApi()
 
   // Webhooks have no server-side search at all: `webhook-endpoints` isn't in
   // SearchableType (verified against SearchesController's SEARCH_MODELS in
   // keygen-api, which omits it), and WebhookEndpointsController registers no
-  // has_scope calls either, so `enabled`/`url` filters in WebhookFilters were
-  // always dead too. No filter UI to migrate — just pagination.
+  // has_scope calls either, so `url` filters in WebhookFilters were always
+  // dead too. No filter UI to migrate — just pagination.
   const fetchWebhooks = useCallback(async (page: number, pageSize: number): Promise<KeygenListResponse<Webhook>> => {
     try {
       return await api.webhooks.list({ page: { size: pageSize, number: page } })
@@ -60,31 +58,6 @@ export function WebhookManagement() {
   } = usePaginatedList<Webhook>({
     fetcher: fetchWebhooks,
   })
-
-  const handleToggleWebhook = async (webhook: Webhook) => {
-    setTogglingWebhooks(prev => new Set(prev).add(webhook.id))
-
-    try {
-      if (webhook.attributes.enabled) {
-        await api.webhooks.disable(webhook.id)
-        toast.success('Webhook disabled')
-      } else {
-        await api.webhooks.enable(webhook.id)
-        toast.success('Webhook enabled')
-      }
-      loadWebhooks()
-    } catch (error: unknown) {
-      handleCrudError(error, 'update', 'Webhook', {
-        customMessage: `Failed to ${webhook.attributes.enabled ? 'disable' : 'enable'} webhook`
-      })
-    } finally {
-      setTogglingWebhooks(prev => {
-        const next = new Set(prev)
-        next.delete(webhook.id)
-        return next
-      })
-    }
-  }
 
   const handleTestWebhook = async (webhook: Webhook) => {
     try {
@@ -181,14 +154,13 @@ export function WebhookManagement() {
               <TableRow>
                 <TableHead>URL</TableHead>
                 <TableHead>Events</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeleton rows={Math.min(pageSize, 10)} columns={5} />
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={4} />
               ) : webhooks.length > 0 ? (
                 webhooks.map((webhook) => (
                   <TableRow key={webhook.id}>
@@ -210,18 +182,6 @@ export function WebhookManagement() {
                             +{webhook.attributes.subscriptions.length - 3} more
                           </Badge>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={webhook.attributes.enabled}
-                          disabled={togglingWebhooks.has(webhook.id)}
-                          onCheckedChange={() => handleToggleWebhook(webhook)}
-                        />
-                        <Badge variant={webhook.attributes.enabled ? 'default' : 'secondary'}>
-                          {webhook.attributes.enabled ? 'Enabled' : 'Disabled'}
-                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell>{formatDate(webhook.attributes.created)}</TableCell>
@@ -246,23 +206,6 @@ export function WebhookManagement() {
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleToggleWebhook(webhook)}
-                            className="gap-2"
-                            disabled={togglingWebhooks.has(webhook.id)}
-                          >
-                            {webhook.attributes.enabled ? (
-                              <>
-                                <Pause className="h-4 w-4" />
-                                Disable
-                              </>
-                            ) : (
-                              <>
-                                <Play className="h-4 w-4" />
-                                Enable
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
                             onClick={() => handleDelete(webhook)}
                             className="gap-2 text-destructive focus:text-destructive"
                           >
@@ -277,7 +220,7 @@ export function WebhookManagement() {
               ) : (
                 <EmptyState
                   icon={WebhookIcon}
-                  colSpan={5}
+                  colSpan={4}
                   title="No webhooks found"
                   description="Create a webhook to receive real-time event notifications"
                 />

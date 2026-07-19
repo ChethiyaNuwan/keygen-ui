@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Plus, X } from 'lucide-react'
 import { handleFormError } from '@/lib/utils/error-handling'
@@ -28,7 +27,6 @@ import { handleFormError } from '@/lib/utils/error-handling'
 const webhookSchema = z.object({
   url: z.string().trim().min(1, 'Webhook endpoint URL is required').url('Please enter a valid URL'),
   subscriptions: z.array(z.string()).min(1, 'At least one event must be selected'),
-  enabled: z.boolean(),
 })
 
 type WebhookFormValues = z.infer<typeof webhookSchema>
@@ -36,7 +34,6 @@ type WebhookFormValues = z.infer<typeof webhookSchema>
 const defaultValues: WebhookFormValues = {
   url: '',
   subscriptions: [],
-  enabled: true,
 }
 
 interface CreateWebhookDialogProps {
@@ -70,7 +67,6 @@ export function CreateWebhookDialog({
       await api.webhooks.create({
         url: values.url,
         subscriptions: values.subscriptions,
-        enabled: values.enabled
       })
 
       form.reset(defaultValues)
@@ -154,23 +150,6 @@ export function CreateWebhookDialog({
                           The URL where webhook events will be sent via HTTP POST.
                         </p>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={loading}
-                          />
-                        </FormControl>
-                        <Label className="font-normal">Enable webhook immediately</Label>
                       </FormItem>
                     )}
                   />

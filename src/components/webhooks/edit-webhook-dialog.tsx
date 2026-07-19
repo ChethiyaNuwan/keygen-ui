@@ -21,7 +21,6 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Plus, X } from 'lucide-react'
 import { handleCrudError } from '@/lib/utils/error-handling'
@@ -29,7 +28,6 @@ import { handleCrudError } from '@/lib/utils/error-handling'
 const webhookSchema = z.object({
   url: z.string().trim().min(1, 'Webhook URL is required').url('Please enter a valid URL'),
   subscriptions: z.array(z.string()).min(1, 'At least one event must be selected'),
-  enabled: z.boolean(),
 })
 
 type WebhookFormValues = z.infer<typeof webhookSchema>
@@ -38,7 +36,6 @@ function webhookToFormValues(webhook: Webhook): WebhookFormValues {
   return {
     url: webhook.attributes.url,
     subscriptions: [...webhook.attributes.subscriptions],
-    enabled: webhook.attributes.enabled,
   }
 }
 
@@ -83,7 +80,6 @@ export function EditWebhookDialog({
       await api.webhooks.update(webhook.id, {
         url: values.url,
         subscriptions: values.subscriptions,
-        enabled: values.enabled
       })
 
       onWebhookUpdated()
@@ -165,23 +161,6 @@ export function EditWebhookDialog({
                           The URL where webhook events will be sent via HTTP POST.
                         </p>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="enabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={loading}
-                          />
-                        </FormControl>
-                        <Label className="font-normal">Enable webhook</Label>
                       </FormItem>
                     )}
                   />

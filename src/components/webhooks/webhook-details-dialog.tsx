@@ -35,18 +35,18 @@ export function WebhookDetailsDialog({
   const api = getKeygenApi()
 
   const loadWebhookDeliveries = useCallback(async () => {
-    if (!webhook.id) return
+    if (!webhook.attributes.url) return
 
     setLoadingDeliveries(true)
     try {
-      const deliveriesResponse = await api.webhooks.getDeliveries(webhook.id, { limit: 10 })
+      const deliveriesResponse = await api.webhooks.getDeliveries(webhook.attributes.url, { limit: 10 })
       setDeliveries((deliveriesResponse.data || []) as WebhookEventRecord[])
     } catch (error: unknown) {
       handleLoadError(error, 'webhook deliveries', { silent: true })
     } finally {
       setLoadingDeliveries(false)
     }
-  }, [api.webhooks, webhook.id])
+  }, [api.webhooks, webhook.attributes.url])
 
   useEffect(() => {
     if (open && webhook.id) {
@@ -110,14 +110,6 @@ export function WebhookDetailsDialog({
     toast.success('Endpoint URL copied to clipboard')
   }
 
-  const handleCopySigningKey = () => {
-    if (webhook.attributes.signingKey) {
-      navigator.clipboard.writeText(webhook.attributes.signingKey)
-      toast.success('Signing key copied to clipboard')
-    }
-  }
-
-
   const groupEventsByResource = (events: string[]) => {
     const groups: Record<string, string[]> = {}
     events.forEach(event => {
@@ -174,10 +166,10 @@ export function WebhookDetailsDialog({
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                    <label className="text-sm font-medium text-muted-foreground">Signature Algorithm</label>
                     <div className="mt-1">
-                      <Badge variant={webhook.attributes.enabled ? 'default' : 'secondary'}>
-                        {webhook.attributes.enabled ? 'Enabled' : 'Disabled'}
+                      <Badge variant="outline" className="font-mono">
+                        {webhook.attributes.signatureAlgorithm || 'default'}
                       </Badge>
                     </div>
                   </div>
@@ -187,24 +179,11 @@ export function WebhookDetailsDialog({
                   </div>
                 </div>
 
-                {webhook.attributes.signingKey && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Signing Key</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <code className="text-sm bg-muted px-2 py-1 rounded flex-1">
-                        {webhook.attributes.signingKey.substring(0, 20)}...
-                      </code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleCopySigningKey}
-                        className="h-8"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Payloads are signed with your account&apos;s keypair, not a per-endpoint secret —
+                  verify deliveries the same way you already verify license/machine files, using the
+                  account&apos;s public key.
+                </p>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
