@@ -70,6 +70,10 @@ const policySchema = z.object({
   name: z.string().trim().min(1, 'Policy name is required'),
   productId: z.string().min(1, 'Please select a product'),
   duration: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number of seconds'),
+  maxMachines: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxProcesses: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxCores: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxUses: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
   strict: z.boolean(),
   floating: z.boolean(),
   protected: z.boolean(),
@@ -89,6 +93,10 @@ const defaultValues: PolicyFormValues = {
   name: '',
   productId: '',
   duration: '',
+  maxMachines: '',
+  maxProcesses: '',
+  maxCores: '',
+  maxUses: '',
   strict: false,
   floating: false,
   protected: false,
@@ -149,6 +157,18 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
 
       if (values.duration.trim()) {
         policyData.duration = parseInt(values.duration, 10)
+      }
+      if (values.maxMachines.trim()) {
+        policyData.maxMachines = parseInt(values.maxMachines, 10)
+      }
+      if (values.maxProcesses.trim()) {
+        policyData.maxProcesses = parseInt(values.maxProcesses, 10)
+      }
+      if (values.maxCores.trim()) {
+        policyData.maxCores = parseInt(values.maxCores, 10)
+      }
+      if (values.maxUses.trim()) {
+        policyData.maxUses = parseInt(values.maxUses, 10)
       }
 
       if (values.strict) policyData.strict = true
@@ -264,6 +284,68 @@ export function CreatePolicyDialog({ onPolicyCreated }: CreatePolicyDialogProps)
                   )}
                 />
               </div>
+            </div>
+
+            {/* Limits */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Limits</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <FormField
+                  control={form.control}
+                  name="maxMachines"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Machines</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxProcesses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Processes</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxCores"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Cores</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxUses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Uses</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Default limits for licenses under this policy — a license can override Max Machines individually.
+              </p>
             </div>
 
             {/* Policy Type */}

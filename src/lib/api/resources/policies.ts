@@ -25,6 +25,10 @@ import {
 export interface PolicyMutableAttributes {
   name: string;
   duration?: number;
+  maxMachines?: number;
+  maxProcesses?: number;
+  maxCores?: number;
+  maxUses?: number;
   strict?: boolean;
   floating?: boolean;
   protected?: boolean;

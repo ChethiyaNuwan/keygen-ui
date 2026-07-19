@@ -98,6 +98,10 @@ function isValidPositiveIntOrEmpty(value: string): boolean {
 const policySchema = z.object({
   name: z.string().trim().min(1, 'Policy name is required'),
   duration: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number of seconds'),
+  maxMachines: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxProcesses: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxCores: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxUses: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
   strict: z.boolean(),
   floating: z.boolean(),
   protected: z.boolean(),
@@ -126,6 +130,10 @@ function policyToFormValues(policy: Policy): PolicyFormValues {
   return {
     name: a.name,
     duration: a.duration?.toString() ?? '',
+    maxMachines: a.maxMachines?.toString() ?? '',
+    maxProcesses: a.maxProcesses?.toString() ?? '',
+    maxCores: a.maxCores?.toString() ?? '',
+    maxUses: a.maxUses?.toString() ?? '',
     strict: a.strict,
     floating: a.floating,
     protected: a.protected,
@@ -156,6 +164,18 @@ function diffFormValues(values: PolicyFormValues, policy: Policy): Partial<Polic
   if (values.name !== original.name) updates.name = values.name
   if (values.duration !== original.duration) {
     updates.duration = values.duration ? parseInt(values.duration, 10) : undefined
+  }
+  if (values.maxMachines !== original.maxMachines) {
+    updates.maxMachines = values.maxMachines ? parseInt(values.maxMachines, 10) : undefined
+  }
+  if (values.maxProcesses !== original.maxProcesses) {
+    updates.maxProcesses = values.maxProcesses ? parseInt(values.maxProcesses, 10) : undefined
+  }
+  if (values.maxCores !== original.maxCores) {
+    updates.maxCores = values.maxCores ? parseInt(values.maxCores, 10) : undefined
+  }
+  if (values.maxUses !== original.maxUses) {
+    updates.maxUses = values.maxUses ? parseInt(values.maxUses, 10) : undefined
   }
   if (values.strict !== original.strict) updates.strict = values.strict
   if (values.floating !== original.floating) updates.floating = values.floating
@@ -291,6 +311,68 @@ export function EditPolicyDialog({ policy, open, onOpenChange, onPolicyUpdated }
                   )}
                 />
               </div>
+            </div>
+
+            {/* Limits */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Limits</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <FormField
+                  control={form.control}
+                  name="maxMachines"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Machines</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxProcesses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Processes</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxCores"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Cores</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxUses"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Uses</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Default limits for licenses under this policy — a license can override Max Machines individually.
+              </p>
             </div>
 
             {/* Policy Type */}
