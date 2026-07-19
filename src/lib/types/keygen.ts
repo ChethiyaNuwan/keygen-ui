@@ -387,6 +387,22 @@ export interface Release extends KeygenResource {
   };
 }
 
+// Release package — the npm/pypi/tauri/oci/rubygems/raw distribution engine
+// config for a product's releases.
+export type ReleaseEngineKey = 'pypi' | 'tauri' | 'raw' | 'rubygems' | 'npm' | 'oci';
+
+export interface ReleasePackage extends KeygenResource {
+  type: 'packages';
+  attributes: {
+    name?: string;
+    key: string;
+    engine?: ReleaseEngineKey;
+    metadata?: Record<string, unknown>;
+    created: string;
+    updated: string;
+  };
+}
+
 // Release entitlement constraint — gates a release behind an entitlement.
 // No attributes beyond timestamps; the entitlement/release linkage lives in
 // `relationships` (inherited from KeygenResource).

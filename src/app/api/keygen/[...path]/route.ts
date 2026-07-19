@@ -43,6 +43,7 @@ const ALLOWED_PATH_SEGMENTS = new Set([
   'constraints',
   'processes',
   'components',
+  'packages',
   'metrics',
   'actions',
   'second-factors',
