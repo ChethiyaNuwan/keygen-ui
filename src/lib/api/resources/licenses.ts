@@ -60,6 +60,7 @@ export class LicenseResource {
     metadata?: Record<string, unknown>;
     expiry?: string;
     maxUses?: number;
+    maxMachines?: number;
     key?: string;
     protected?: boolean;
     permissions?: string[];
@@ -72,6 +73,7 @@ export class LicenseResource {
           metadata: licenseData.metadata || {},
           expiry: licenseData.expiry,
           maxUses: licenseData.maxUses,
+          ...(licenseData.maxMachines !== undefined ? { maxMachines: licenseData.maxMachines } : {}),
           ...(licenseData.key ? { key: licenseData.key } : {}),
           ...(licenseData.protected !== undefined ? { protected: licenseData.protected } : {}),
           ...(licenseData.permissions && licenseData.permissions.length > 0
@@ -144,6 +146,7 @@ export class LicenseResource {
     metadata?: Record<string, unknown>;
     expiry?: string;
     maxUses?: number;
+    maxMachines?: number;
   }): Promise<KeygenResponse<License>> {
     const body = {
       data: {

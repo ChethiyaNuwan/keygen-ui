@@ -44,6 +44,11 @@ import { Entitlement, Group, Policy, User } from '@/lib/types/keygen'
 import { handleFormError, handleLoadError } from '@/lib/utils/error-handling'
 import { toast } from 'sonner'
 
+function isValidNonNegativeIntOrEmpty(value: string): boolean {
+  if (!value.trim()) return true
+  return /^\d+$/.test(value.trim())
+}
+
 const licenseSchema = z.object({
   name: z.string(),
   policyId: z.string().min(1, 'Please select a policy'),
@@ -53,6 +58,7 @@ const licenseSchema = z.object({
   protected: z.boolean(),
   permissions: z.string(),
   expiry: z.date().optional(),
+  maxMachines: z.string().refine(isValidNonNegativeIntOrEmpty, 'Must be a whole number'),
   metadata: z.array(z.object({ key: z.string(), value: z.string() })),
   selectedUsers: z.array(z.string()),
   selectedEntitlements: z.array(z.string()),
@@ -69,6 +75,7 @@ const defaultValues: LicenseFormValues = {
   protected: true,
   permissions: '',
   expiry: undefined,
+  maxMachines: '',
   metadata: [],
   selectedUsers: [],
   selectedEntitlements: [],
@@ -135,6 +142,7 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
         name: values.name || undefined,
         key: values.key || undefined,
         protected: values.protected,
+        maxMachines: values.maxMachines ? parseInt(values.maxMachines, 10) : undefined,
         permissions: values.permissions
           ? values.permissions.split(',').map((p) => p.trim()).filter(Boolean)
           : undefined,
@@ -296,6 +304,27 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
                             />
                           </PopoverContent>
                         </Popover>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="maxMachines"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center gap-1">
+                          <FormLabel>Max Machines (seats)</FormLabel>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="size-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>Leave blank for unlimited, or to inherit the policy&apos;s limit</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <FormControl>
+                          <Input type="number" min="0" placeholder="Leave empty for unlimited" {...field} />
+                        </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />

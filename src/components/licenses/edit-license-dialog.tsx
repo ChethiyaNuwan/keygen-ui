@@ -49,6 +49,7 @@ const licenseSchema = z.object({
   name: z.string(),
   expiry: z.string(),
   maxUses: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
+  maxMachines: z.string().refine(isValidPositiveIntOrEmpty, 'Must be a whole number'),
   metadata: z.string().refine(isValidJsonOrEmpty, 'Must be valid JSON or empty'),
 })
 
@@ -60,6 +61,7 @@ function licenseToFormValues(license: License): LicenseFormValues {
     name: a.name || '',
     expiry: a.expiry ? a.expiry.split('T')[0] : '',
     maxUses: a.maxUses?.toString() || '',
+    maxMachines: a.maxMachines?.toString() || '',
     metadata: a.metadata && Object.keys(a.metadata).length > 0 ? JSON.stringify(a.metadata, null, 2) : '',
   }
 }
@@ -75,6 +77,9 @@ function diffFormValues(values: LicenseFormValues, license: License): Partial<Li
   }
   if (values.maxUses !== original.maxUses) {
     updates.maxUses = values.maxUses ? parseInt(values.maxUses, 10) : undefined
+  }
+  if (values.maxMachines !== original.maxMachines) {
+    updates.maxMachines = values.maxMachines ? parseInt(values.maxMachines, 10) : undefined
   }
   if (values.metadata !== original.metadata) {
     updates.metadata = values.metadata.trim() ? JSON.parse(values.metadata) : {}
@@ -200,6 +205,23 @@ export function EditLicenseDialog({
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
                     Maximum number of times this license can be used
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="maxMachines"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Max Machines (seats)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min="0" placeholder="Unlimited" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Seats this license grants — leave empty for unlimited, or to inherit the policy&apos;s limit
                   </p>
                   <FormMessage />
                 </FormItem>
