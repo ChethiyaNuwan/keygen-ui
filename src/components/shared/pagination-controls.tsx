@@ -59,8 +59,8 @@ export function PaginationControls({
   if (totalCount === 0) return null
 
   return (
-    <div className="flex items-center justify-between border-t px-6 pt-4 mt-2">
-      {/* Left: showing range + page size */}
+    <div className="flex items-center justify-end gap-6 border-t px-6 pt-4 mt-2">
+      {/* Showing range + page size */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <span>
           Showing{' '}
@@ -91,7 +91,7 @@ export function PaginationControls({
         </div>
       </div>
 
-      {/* Right: page navigation */}
+      {/* Page navigation */}
       {totalPages > 1 && (
         <div className="flex items-center gap-1">
           <Button

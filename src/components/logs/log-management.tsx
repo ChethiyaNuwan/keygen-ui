@@ -230,7 +230,7 @@ export function LogManagement() {
               </Table>
 
               {!eventLoading && eventTotalCount > 0 && (
-                <div className="flex items-center justify-between border-t px-6 pt-4 mt-2">
+                <div className="flex items-center justify-end gap-4 border-t px-6 pt-4 mt-2">
                   <span className="text-sm text-muted-foreground">
                     Page {eventPage} of {eventTotalPages} · {eventTotalCount} total
                   </span>
@@ -358,7 +358,7 @@ export function LogManagement() {
               </Table>
 
               {!requestLoading && requestTotalCount > 0 && (
-                <div className="flex items-center justify-between border-t px-6 pt-4 mt-2">
+                <div className="flex items-center justify-end gap-4 border-t px-6 pt-4 mt-2">
                   <span className="text-sm text-muted-foreground">
                     Page {requestPage} of {requestTotalPages} · {requestTotalCount} total
                   </span>
