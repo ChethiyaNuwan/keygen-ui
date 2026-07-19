@@ -33,6 +33,7 @@ import {
   Edit,
   Clock,
   Eye,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
@@ -326,6 +327,7 @@ export function PolicyManagement() {
                           View Details
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => copyId(policy.id)}>
+                          <Copy className="mr-2 h-4 w-4" />
                           Copy ID
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
