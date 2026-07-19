@@ -1,7 +1,9 @@
 # Keygen CE — self-hosted license server + this dashboard
 
-One stack: Keygen CE (web + worker) with its own Postgres and Redis, plus
-this repo's admin dashboard (`ui`), built and run alongside it.
+One stack: Keygen CE (`keygen-web` + `keygen-worker`) with its own Postgres
+and Redis, plus this repo's admin dashboard (`keygen-ui`), built and run
+alongside it. Every service is named with a `keygen-` prefix — see the
+comment at the top of `docker-compose.yml` for why.
 
 ## Prerequisites
 
@@ -13,17 +15,17 @@ this repo's admin dashboard (`ui`), built and run alongside it.
 
 ## First-time setup
 
-Setup runs automatically as part of `docker compose up -d` — a `setup`
-service bootstraps the database and the admin account exactly once (gated by
-a marker file + a live check that `accounts` is actually empty, so it can
-never re-run destructively against a database that already has data — see
-the comment on the `setup` service in `docker-compose.yml`), then
-`keygen-web`/`worker` wait for it to finish before starting. There's no
-separate manual step.
+Setup runs automatically as part of `docker compose up -d` — a
+`keygen-setup` service bootstraps the database and the admin account
+exactly once (gated by a marker file + a live check that `accounts` is
+actually empty, so it can never re-run destructively against a database
+that already has data — see the comment on the `keygen-setup` service in
+`docker-compose.yml`), then `keygen-web`/`keygen-worker` wait for it to
+finish before starting. There's no separate manual step.
 
 1. Copy the env template, set a **URL-safe** DB password, and generate the
-   secrets (required BEFORE first boot — Rails won't run `setup` without
-   them):
+   secrets (required BEFORE first boot — Rails won't run `keygen-setup`
+   without them):
 
    ```sh
    cp .env.example .env
@@ -36,10 +38,11 @@ separate manual step.
 
    Paste the values into `.env` (or your platform's environment settings)
    and back them up — the `ENCRYPTION_*` keys encrypt data at rest.
-   `KEYGEN_ACCOUNT_ID` has to be decided **before** setup runs — the `setup`
-   service can't prompt interactively (no TTY in a container), so it aborts
-   loudly if this (or `KEYGEN_ADMIN_EMAIL`/`KEYGEN_ADMIN_PASSWORD`) is
-   missing on a truly fresh database.
+   `KEYGEN_ACCOUNT_ID` has to be decided **before** setup runs — the
+   `keygen-setup` service can't prompt interactively (no TTY in a
+   container), so it aborts loudly if this (or
+   `KEYGEN_ADMIN_EMAIL`/`KEYGEN_ADMIN_PASSWORD`) is missing on a truly
+   fresh database.
 
 2. Also set `KEYGEN_ADMIN_EMAIL` and `KEYGEN_ADMIN_PASSWORD` in `.env` —
    only needed for this first boot; safe to remove afterward (see step 4).
@@ -51,17 +54,18 @@ separate manual step.
    docker compose up -d
    ```
 
-   Watch it bootstrap: `docker compose logs -f setup`.
+   Watch it bootstrap: `docker compose logs -f keygen-setup`.
 
 4. Once it's up, remove `KEYGEN_ADMIN_EMAIL` / `KEYGEN_ADMIN_PASSWORD` from
    `.env` — they're only read on the one boot where the marker is absent and
-   the database is empty; every boot after this is a no-op for `setup`
-   regardless of whether they're still set, but there's no reason to leave
-   the admin password sitting in `.env` longer than it has to.
+   the database is empty; every boot after this is a no-op for
+   `keygen-setup` regardless of whether they're still set, but there's no
+   reason to leave the admin password sitting in `.env` longer than it has
+   to.
 
 5. Verify the API: `curl -s https://<your-api-domain>/v1/ping`.
-   Verify the dashboard by loading whatever domain you exposed `ui` on (see
-   below) and logging in with the admin email/password from step 2.
+   Verify the dashboard by loading whatever domain you exposed `keygen-ui`
+   on (see below) and logging in with the admin email/password from step 2.
 
 ## After setup
 
@@ -78,7 +82,7 @@ service/port you designate, not via anything written into this compose
 file. No nginx or explicit routing rules are needed for the public-facing
 side:
 
-- **`ui`** (port 3000) — the dashboard. Point your admin domain at it.
+- **`keygen-ui`** (port 3000) — the dashboard. Point your admin domain at it.
 - **`keygen-web`** (port 3000, same image different command) — the raw
   Keygen API, if you want your API domain to serve traffic directly
   (license activation, checkouts, etc. from licensed applications and other
@@ -91,18 +95,19 @@ rate-limiting of its own beyond what Keygen's API already does.
 
 ### How the dashboard reaches the API
 
-`ui` and `keygen-web` are both services in *this same* compose file, so they
-already share a Docker network directly — `ui`'s build arg points straight
-at `http://keygen-web:3000/v1`, no shim in between.
+`keygen-ui` and `keygen-web` are both services in *this same* compose file,
+so they already share a Docker network directly — `keygen-ui`'s build arg
+points straight at `http://keygen-web:3000/v1`, no shim in between.
 
-The Keygen API service is deliberately named `keygen-web`, not the more
-generic `web`: `ui` also has to sit on whatever shared network your
-platform uses for public routing (see the `dokploy-network` comment on the
-`ui` service in `docker-compose.yml`), and on a shared network, a name as
-generic as `web` can collide with some *other* app's service also called
-`web` — Docker's embedded DNS then resolves the hostname to the wrong
-container, and requests fail with a connection error even though the
-right container is up and healthy. A specific name avoids that.
+Every service here is named with a `keygen-` prefix rather than something
+generic like `web` or `postgres`: `keygen-ui` also has to sit on whatever
+shared network your platform uses for public routing (e.g. Dokploy's
+Traefik network), and on a shared network a generic name can collide with
+some *other* app's service of the same name — Docker's embedded DNS then
+resolves the hostname to the wrong container, and requests fail with a
+connection error even though the right container is up and healthy. A
+specific name avoids that regardless of which service ends up needing the
+shared network.
 
 The one obstacle a direct `http://keygen-web:3000` request hits is Rails'
 own `Host` authorization and `force_ssl`: `force_ssl` 301-redirects a plain
@@ -145,27 +150,27 @@ S3/R2 later = repoint the `AWS_*` values.
 - If your platform deploys with `docker compose -p <app-name>`, that
   **overrides** the `name:` in this file. Any manual `docker compose
   run`/`exec` on the server must pass the same project name, or compose
-  silently creates a parallel stack with its own postgres/volumes.
-- Setup (the `setup` service) runs non-interactively off `KEYGEN_ACCOUNT_ID`,
-  `KEYGEN_ADMIN_EMAIL`, and `KEYGEN_ADMIN_PASSWORD` — set them as regular
-  environment variables for this app, same as any other var here, no manual
-  `docker compose run` needed (see "First-time setup" above). If you ever do
-  need to invoke it by hand (e.g. to inspect its output live), match your
-  platform's project name or it'll spin up a parallel stack with its own
-  postgres/volumes:
+  silently creates a parallel stack with its own database/volumes.
+- Setup (the `keygen-setup` service) runs non-interactively off
+  `KEYGEN_ACCOUNT_ID`, `KEYGEN_ADMIN_EMAIL`, and `KEYGEN_ADMIN_PASSWORD` —
+  set them as regular environment variables for this app, same as any other
+  var here, no manual `docker compose run` needed (see "First-time setup"
+  above). If you ever do need to invoke it by hand (e.g. to inspect its
+  output live), match your platform's project name or it'll spin up a
+  parallel stack with its own database/volumes:
 
   ```sh
-  docker compose -p <app-name> run --rm setup
+  docker compose -p <app-name> run --rm keygen-setup
   ```
 - After first boot, remove `KEYGEN_ADMIN_EMAIL` / `KEYGEN_ADMIN_PASSWORD`
-  from the environment — they're not needed again (`setup` no-ops on every
-  boot after the marker exists).
+  from the environment — they're not needed again (`keygen-setup` no-ops on
+  every boot after the marker exists).
 
 ## Upgrades
 
 ```sh
-docker compose pull        # pulls a newer keygen/api image; ui rebuilds from source
-docker compose build ui    # if you've changed dashboard code
+docker compose pull                # pulls a newer keygen/api image; keygen-ui rebuilds from source
+docker compose build keygen-ui     # if you've changed dashboard code
 docker compose run --rm keygen-web release   # run pending DB migrations — NOT `migrate`;
                                        # the image's entrypoint only recognizes
                                        # "release" for this (bundle exec rails
