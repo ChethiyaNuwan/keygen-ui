@@ -167,7 +167,7 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                           <p className="text-sm font-medium">{machine.attributes.name || machine.attributes.fingerprint}</p>
                           <p className="text-xs text-muted-foreground">{machine.attributes.platform || 'Unknown platform'}</p>
                         </div>
-                        <Badge variant={machine.attributes.heartbeatStatus === 'alive' ? 'default' : 'secondary'}>
+                        <Badge variant={machine.attributes.heartbeatStatus === 'ALIVE' ? 'default' : 'secondary'}>
                           {machine.attributes.heartbeatStatus}
                         </Badge>
                       </div>

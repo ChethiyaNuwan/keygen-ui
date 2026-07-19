@@ -121,11 +121,20 @@ export interface Machine extends KeygenResource {
     platform?: string;
     hostname?: string;
     cores?: number;
+    memory?: number;
+    disk?: number;
     ip?: string;
     requireHeartbeat: boolean;
-    heartbeatStatus: 'alive' | 'dead' | 'not-started';
+    // Bare `def heartbeat_status` (aliased `status`) in machine.rb returns
+    // literal uppercase/underscore strings with no downcasing step — same
+    // wire-format trap as License/User/Process status. Do not lowercase.
+    heartbeatStatus: 'NOT_STARTED' | 'ALIVE' | 'DEAD';
     heartbeatDuration?: number;
+    maxProcesses?: number;
+    lastCheckOut?: string;
     lastHeartbeat?: string;
+    nextHeartbeat?: string;
+    metadata?: Record<string, unknown>;
     created: string;
     updated: string;
   };

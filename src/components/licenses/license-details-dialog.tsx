@@ -585,7 +585,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Badge variant={machine.attributes.heartbeatStatus === 'alive' ? 'default' : 'secondary'}>
+                              <Badge variant={machine.attributes.heartbeatStatus === 'ALIVE' ? 'default' : 'secondary'}>
                                 {machine.attributes.heartbeatStatus}
                               </Badge>
                               <Button size="sm" variant="ghost" onClick={() => handleDeactivateMachine(machine)}>

@@ -147,21 +147,21 @@ export function MachineManagement() {
     loadAccountStats()
   }, [loadAccountStats])
 
-  const notStartedOnPage = machines.filter(m => m.attributes.heartbeatStatus === 'not-started').length
+  const notStartedOnPage = machines.filter(m => m.attributes.heartbeatStatus === 'NOT_STARTED').length
 
   const getHeartbeatTone = (heartbeatStatus: string): StatusTone => {
     switch (heartbeatStatus) {
-      case 'alive': return 'success'
-      case 'dead': return 'danger'
+      case 'ALIVE': return 'success'
+      case 'DEAD': return 'danger'
       default: return 'neutral'
     }
   }
 
   const getStatusIcon = (heartbeatStatus: string) => {
     switch (heartbeatStatus) {
-      case 'alive': return <CheckCircle className="h-3 w-3" />
-      case 'dead': return <AlertCircle className="h-3 w-3" />
-      case 'not-started': return <Activity className="h-3 w-3" />
+      case 'ALIVE': return <CheckCircle className="h-3 w-3" />
+      case 'DEAD': return <AlertCircle className="h-3 w-3" />
+      case 'NOT_STARTED': return <Activity className="h-3 w-3" />
       default: return <Activity className="h-3 w-3" />
     }
   }
