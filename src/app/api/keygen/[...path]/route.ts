@@ -11,6 +11,20 @@ if (!KEYGEN_API_URL) {
 // Extract base URL without /v1 suffix
 const BASE_URL = KEYGEN_API_URL.replace(/\/v1\/?$/, '')
 
+// Set only when this server proxies to Keygen's `web` service directly over
+// a shared Docker network (same compose stack — no nginx shim in between).
+// Rails' host authorization and force_ssl both reject a plain
+// http://web:PORT request otherwise: force_ssl 301-redirects to https (this
+// route never follows redirects, see `redirect: 'manual'` below) and the
+// Host header won't match what Keygen's KEYGEN_HOST config expects. Setting
+// these two headers reproduces exactly what a real HTTPS request through
+// the public domain would look like, without leaving Docker. Deliberately
+// NOT a NEXT_PUBLIC_* var — this is server-only and safe to change at
+// runtime without a rebuild. Leave unset for any deployment that talks to a
+// real public/HTTPS Keygen URL (the default, and the only supported mode
+// before this) — those need neither header.
+const KEYGEN_INTERNAL_HOST = process.env.KEYGEN_INTERNAL_HOST
+
 // Always validate TLS certificates — use NODE_TLS_REJECT_UNAUTHORIZED=0 or a custom CA
 // bundle in development if connecting to a self-signed Keygen instance.
 const httpsAgent = new https.Agent({
@@ -77,6 +91,12 @@ async function proxyRequest(request: NextRequest, path: string[]) {
   const headers: Record<string, string> = {
     'Content-Type': request.headers.get('content-type') || 'application/vnd.api+json',
     'Accept': request.headers.get('accept') || 'application/vnd.api+json',
+  }
+
+  // Internal direct-to-`web` mode only — see KEYGEN_INTERNAL_HOST above.
+  if (KEYGEN_INTERNAL_HOST) {
+    headers['Host'] = KEYGEN_INTERNAL_HOST
+    headers['X-Forwarded-Proto'] = 'https'
   }
 
   // Forward Prefer (e.g. no-redirect / no-download for artifact presigned URLs)
