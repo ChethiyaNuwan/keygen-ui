@@ -32,11 +32,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Plus, X, Shield, Unlock, Lock } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Plus, Shield, Unlock, Lock } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
+
+const PLATFORM_OPTIONS = [
+  'Windows',
+  'macOS',
+  'Linux',
+  'iOS',
+  'Android',
+  'Web',
+  'Docker',
+  'Cloud'
+]
 
 function isValidJsonObjectOrEmpty(value: string): boolean {
   if (!value.trim()) return true
@@ -74,7 +85,6 @@ interface CreateProductDialogProps {
 
 export function CreateProductDialog({ onProductCreated }: CreateProductDialogProps) {
   const [open, setOpen] = useState(false)
-  const [platformInput, setPlatformInput] = useState('')
 
   const api = getKeygenApi()
 
@@ -85,22 +95,11 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
 
   const platforms = form.watch('platforms')
 
-  const addPlatform = () => {
-    const platform = platformInput.trim()
-    if (platform && !platforms.includes(platform)) {
+  const handlePlatformToggle = (platform: string, checked: boolean) => {
+    if (checked) {
       form.setValue('platforms', [...platforms, platform])
-      setPlatformInput('')
-    }
-  }
-
-  const removePlatform = (platform: string) => {
-    form.setValue('platforms', platforms.filter(p => p !== platform))
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      addPlatform()
+    } else {
+      form.setValue('platforms', platforms.filter(p => p !== platform))
     }
   }
 
@@ -120,7 +119,6 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
       toast.success('Product created successfully')
       setOpen(false)
       form.reset(defaultValues)
-      setPlatformInput('')
       onProductCreated?.()
     } catch (error: unknown) {
       handleFormError(error, 'Product')
@@ -233,36 +231,25 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
             />
 
             <div className="space-y-2">
-              <Label htmlFor="platforms">Platforms</Label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input
-                    id="platforms"
-                    placeholder="e.g., Windows, macOS, Linux"
-                    value={platformInput}
-                    onChange={(e) => setPlatformInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                  />
-                  <Button type="button" onClick={addPlatform} disabled={!platformInput.trim()}>
-                    Add
-                  </Button>
-                </div>
-                {platforms.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {platforms.map((platform) => (
-                      <Badge key={platform} variant="secondary" className="flex items-center gap-1">
-                        {platform}
-                        <button
-                          type="button"
-                          onClick={() => removePlatform(platform)}
-                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+              <Label>Platforms</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {PLATFORM_OPTIONS.map((platform) => (
+                  <div key={platform} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`create-platform-${platform}`}
+                      checked={platforms.includes(platform)}
+                      onCheckedChange={(checked) =>
+                        handlePlatformToggle(platform, checked as boolean)
+                      }
+                    />
+                    <Label
+                      htmlFor={`create-platform-${platform}`}
+                      className="text-sm font-normal"
+                    >
+                      {platform}
+                    </Label>
                   </div>
-                )}
+                ))}
               </div>
             </div>
 
@@ -294,7 +281,6 @@ export function CreateProductDialog({ onProductCreated }: CreateProductDialogPro
                 onClick={() => {
                   setOpen(false)
                   form.reset(defaultValues)
-                  setPlatformInput('')
                 }}
               >
                 Cancel
