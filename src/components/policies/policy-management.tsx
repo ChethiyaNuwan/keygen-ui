@@ -5,7 +5,7 @@ import { getKeygenApi } from '@/lib/api'
 import { Policy, KeygenListResponse } from '@/lib/types/keygen'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
@@ -240,140 +240,148 @@ export function PolicyManagement() {
       </div>
 
       {/* Policies Table */}
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Policy</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Expiration</TableHead>
-              <TableHead>Limits</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableSkeleton rows={Math.min(pageSize, 10)} columns={6} />
-            ) : policies.length > 0 ? (
-              policies.map((policy) => (
-                <TableRow key={policy.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{policy.attributes.name}</div>
-                      <div className="text-sm text-muted-foreground font-mono">
-                        {policy.id}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle>Policy List</CardTitle>
+          <CardDescription>
+            {totalCount} polic{totalCount === 1 ? 'y' : 'ies'} total
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Policy</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Expiration</TableHead>
+                <TableHead>Limits</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableSkeleton rows={Math.min(pageSize, 10)} columns={6} />
+              ) : policies.length > 0 ? (
+                policies.map((policy) => (
+                  <TableRow key={policy.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{policy.attributes.name}</div>
+                        <div className="text-sm text-muted-foreground font-mono">
+                          {policy.id}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {policy.attributes.floating && (
-                        <Badge variant="outline" className="text-xs">
-                          Floating
-                        </Badge>
-                      )}
-                      {policy.attributes.strict && (
-                        <Badge variant="outline" className="text-xs">
-                          Strict
-                        </Badge>
-                      )}
-                      {policy.attributes.protected && (
-                        <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-200">
-                          Protected
-                        </Badge>
-                      )}
-                      {policy.attributes.requireHeartbeat && (
-                        <Badge variant="outline" className="text-xs">
-                          Heartbeat
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`text-sm ${policy.attributes.duration ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {getExpirationText(policy.attributes.duration)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm space-y-1">
-                      {policy.attributes.maxMachines && (
-                        <div>Machines: {policy.attributes.maxMachines}</div>
-                      )}
-                      {policy.attributes.maxProcesses && (
-                        <div>Processes: {policy.attributes.maxProcesses}</div>
-                      )}
-                      {policy.attributes.maxUses && (
-                        <div>Uses: {policy.attributes.maxUses}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(policy.attributes.created)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleViewDetails(policy)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => copyId(policy.id)}>
-                          <Copy className="mr-2 h-4 w-4" />
-                          Copy ID
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleEditPolicy(policy)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Policy
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDeletePolicy(policy)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <EmptyState
-                icon={Shield}
-                colSpan={6}
-                title="No policies found"
-                description={
-                  searchTerm
-                    ? 'Try adjusting your search'
-                    : 'Create a policy to define licensing rules for your products'
-                }
-              />
-            )}
-          </TableBody>
-        </Table>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.attributes.floating && (
+                          <Badge variant="outline" className="text-xs">
+                            Floating
+                          </Badge>
+                        )}
+                        {policy.attributes.strict && (
+                          <Badge variant="outline" className="text-xs">
+                            Strict
+                          </Badge>
+                        )}
+                        {policy.attributes.protected && (
+                          <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-200">
+                            Protected
+                          </Badge>
+                        )}
+                        {policy.attributes.requireHeartbeat && (
+                          <Badge variant="outline" className="text-xs">
+                            Heartbeat
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`text-sm ${policy.attributes.duration ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {getExpirationText(policy.attributes.duration)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm space-y-1">
+                        {policy.attributes.maxMachines && (
+                          <div>Machines: {policy.attributes.maxMachines}</div>
+                        )}
+                        {policy.attributes.maxProcesses && (
+                          <div>Processes: {policy.attributes.maxProcesses}</div>
+                        )}
+                        {policy.attributes.maxUses && (
+                          <div>Uses: {policy.attributes.maxUses}</div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(policy.attributes.created)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleViewDetails(policy)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => copyId(policy.id)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy ID
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleEditPolicy(policy)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Policy
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeletePolicy(policy)}
+                            className="text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Shield}
+                  colSpan={6}
+                  title="No policies found"
+                  description={
+                    searchTerm
+                      ? 'Try adjusting your search'
+                      : 'Create a policy to define licensing rules for your products'
+                  }
+                />
+              )}
+            </TableBody>
+          </Table>
 
-        {!loading && (
-          <PaginationControls
-            currentPage={currentPage}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        )}
-      </div>
+          {!loading && (
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Delete Dialog */}
       {policyToDelete && (
