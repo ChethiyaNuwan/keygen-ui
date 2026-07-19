@@ -77,7 +77,7 @@ export function PaginationControls({
         <div className="flex items-center gap-1.5">
           <span className="text-xs">Rows</span>
           <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
-            <SelectTrigger className="h-7 w-[62px] text-xs">
+            <SelectTrigger className="h-7 w-[70px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
