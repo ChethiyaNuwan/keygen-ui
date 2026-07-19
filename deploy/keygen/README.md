@@ -17,9 +17,9 @@ Setup runs automatically as part of `docker compose up -d` — a `setup`
 service bootstraps the database and the admin account exactly once (gated by
 a marker file + a live check that `accounts` is actually empty, so it can
 never re-run destructively against a database that already has data — see
-the comment on the `setup` service in `docker-compose.yml`), then `web`/
-`worker` wait for it to finish before starting. There's no separate manual
-step.
+the comment on the `setup` service in `docker-compose.yml`), then
+`keygen-web`/`worker` wait for it to finish before starting. There's no
+separate manual step.
 
 1. Copy the env template, set a **URL-safe** DB password, and generate the
    secrets (required BEFORE first boot — Rails won't run `setup` without
@@ -79,10 +79,10 @@ file. No nginx or explicit routing rules are needed for the public-facing
 side:
 
 - **`ui`** (port 3000) — the dashboard. Point your admin domain at it.
-- **`web`** (port 3000, same image different command) — the raw Keygen API,
-  if you want your API domain to serve traffic directly (license activation,
-  checkouts, etc. from licensed applications and other clients). This is the
-  one that needs the DNS host from "Prerequisites."
+- **`keygen-web`** (port 3000, same image different command) — the raw
+  Keygen API, if you want your API domain to serve traffic directly
+  (license activation, checkouts, etc. from licensed applications and other
+  clients). This is the one that needs the DNS host from "Prerequisites."
 
 The dashboard does **not** call the API through its own public URL — see
 "How the dashboard reaches the API" below, and don't expose the dashboard
@@ -91,24 +91,34 @@ rate-limiting of its own beyond what Keygen's API already does.
 
 ### How the dashboard reaches the API
 
-`ui` and `web` are both services in *this same* compose file, so they
+`ui` and `keygen-web` are both services in *this same* compose file, so they
 already share a Docker network directly — `ui`'s build arg points straight
-at `http://web:3000/v1`, no shim in between.
+at `http://keygen-web:3000/v1`, no shim in between.
 
-The one obstacle a direct `http://web:3000` request hits is Rails' own
-`Host` authorization and `force_ssl`: `force_ssl` 301-redirects a plain HTTP
-request to HTTPS, and the `Host` header from a raw compose service-name
-request won't match Keygen's configured `KEYGEN_HOST`. The dashboard's proxy
-route (`src/app/api/keygen/[...path]/route.ts`) sets `Host` and
-`X-Forwarded-Proto` on that one outbound request itself, whenever
-`KEYGEN_INTERNAL_HOST` is set (see that service's `environment:` in
-`docker-compose.yml`) — reproducing exactly what a real HTTPS request
+The Keygen API service is deliberately named `keygen-web`, not the more
+generic `web`: `ui` also has to sit on whatever shared network your
+platform uses for public routing (see the `dokploy-network` comment on the
+`ui` service in `docker-compose.yml`), and on a shared network, a name as
+generic as `web` can collide with some *other* app's service also called
+`web` — Docker's embedded DNS then resolves the hostname to the wrong
+container, and requests fail with a connection error even though the
+right container is up and healthy. A specific name avoids that.
+
+The one obstacle a direct `http://keygen-web:3000` request hits is Rails'
+own `Host` authorization and `force_ssl`: `force_ssl` 301-redirects a plain
+HTTP request to HTTPS, and the `Host` header from a raw compose
+service-name request won't match Keygen's configured `KEYGEN_HOST`. The
+dashboard's proxy route (`src/app/api/keygen/[...path]/route.ts`) sets
+`Host` and `X-Forwarded-Proto` on that one outbound request itself,
+whenever `KEYGEN_INTERNAL_HOST` is set (see that service's `environment:`
+in `docker-compose.yml`) — reproducing exactly what a real HTTPS request
 through the public domain looks like, entirely in application code, no
 extra container needed.
 
 If some *other* service ever needs to reach this account's API the same
-way, it needs the same two things: a shared Docker network with `web`, and
-to set those two headers itself on its own outbound request.
+way, it needs the same two things: a shared Docker network with
+`keygen-web`, and to set those two headers itself on its own outbound
+request.
 
 ## Artifact storage (external S3-compatible server)
 
@@ -156,7 +166,7 @@ S3/R2 later = repoint the `AWS_*` values.
 ```sh
 docker compose pull        # pulls a newer keygen/api image; ui rebuilds from source
 docker compose build ui    # if you've changed dashboard code
-docker compose run --rm web release   # run pending DB migrations — NOT `migrate`;
+docker compose run --rm keygen-web release   # run pending DB migrations — NOT `migrate`;
                                        # the image's entrypoint only recognizes
                                        # "release" for this (bundle exec rails
                                        # db:migrate), confirmed against its

@@ -86,7 +86,13 @@ services:
     volumes:
       - keygen_setup_marker:/setup-data
 
-  web:
+  # Named `keygen-web`, not `web` — this stack's containers also need to sit
+  # on the platform's shared routing network (see the `ui` service below),
+  # and a name as generic as `web` is likely to collide with some other
+  # app's own service also called `web` on that shared network, causing
+  # Docker's embedded DNS to resolve the hostname to the WRONG container.
+  # `ui` reaches this one at http://keygen-web:3000, unambiguous.
+  keygen-web:
     image: keygen/api:latest
     command: web
     restart: unless-stopped
@@ -155,11 +161,11 @@ services:
   # always has, just as one service in this stack instead of its own
   # separate app.
   #
-  # No nginx shim in between: `ui` and `web` are services in this same
+  # No nginx shim in between: `ui` and `keygen-web` are services in this same
   # compose file, so they already share a Docker network directly and can
   # reach each other by service name. The only obstacle is Rails' own `Host`
-  # authorization and `force_ssl`, which a plain `http://web:3000` request
-  # would otherwise fail — the dashboard's own proxy route
+  # authorization and `force_ssl`, which a plain `http://keygen-web:3000`
+  # request would otherwise fail — the dashboard's own proxy route
   # (src/app/api/keygen/[...path]/route.ts) sets the `Host` and
   # `X-Forwarded-Proto` headers itself when KEYGEN_INTERNAL_HOST is set,
   # reproducing what a real HTTPS request through the public domain looks
@@ -176,14 +182,14 @@ services:
       context: ../..
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_KEYGEN_API_URL: http://web:3000/v1
+        NEXT_PUBLIC_KEYGEN_API_URL: http://keygen-web:3000/v1
         NEXT_PUBLIC_KEYGEN_SINGLEPLAYER: "true"
         NEXT_PUBLIC_KEYGEN_ACCOUNT_ID: ${KEYGEN_ACCOUNT_ID}
     restart: unless-stopped
     environment:
       KEYGEN_INTERNAL_HOST: ${KEYGEN_HOST}
     depends_on:
-      - web
+      - keygen-web
     # Not published to a host port — Dokploy attaches Traefik routing to
     # whichever service/port you designate as this app's exposed one (port
     # 3000 here), same mechanism it already uses for every other service in
