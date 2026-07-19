@@ -82,14 +82,16 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
   const loadInitialData = useCallback(async () => {
     try {
       setLoadingData(true)
-      // Load active licenses for machine activation
-      const licensesResponse = await api.licenses.list({
-        limit: 100,
-        // Only get active licenses
-      })
-      setLicenses(licensesResponse.data?.filter(license =>
-        license.attributes.status === 'ACTIVE'
-      ) || [])
+      // Deliberately not filtered to status === 'ACTIVE': a freshly created
+      // license is commonly INACTIVE until its first validation, and
+      // EXPIRING is still a fully valid, activatable license — a client-side
+      // status allowlist here previously hid every real license except ones
+      // in the exact ACTIVE state, leaving this picker empty in the common
+      // case. Keygen's own activate endpoint is the actual authority on
+      // whether a given license can accept a new machine (e.g. SUSPENDED/
+      // BANNED/EXPIRED get rejected there with a clear error).
+      const licensesResponse = await api.licenses.list({ limit: 100 })
+      setLicenses(licensesResponse.data || [])
     } catch (error: unknown) {
       handleLoadError(error, 'licenses')
     } finally {
@@ -182,11 +184,13 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
                           {licenses.map((license) => (
                             <SelectItem key={license.id} value={license.id}>
                               {license.attributes.name || license.attributes.key}
-                              {license.attributes.maxUses && (
-                                <span className="text-muted-foreground ml-2">
-                                  ({license.attributes.uses}/{license.attributes.maxUses} uses)
-                                </span>
-                              )}
+                              <span className="text-muted-foreground ml-2">
+                                ({license.attributes.status.toLowerCase()}
+                                {license.attributes.maxUses
+                                  ? `, ${license.attributes.uses}/${license.attributes.maxUses} uses`
+                                  : ''}
+                                )
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
