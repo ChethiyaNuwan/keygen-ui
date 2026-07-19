@@ -37,17 +37,7 @@ import { Plus, Shield, Unlock, Lock } from 'lucide-react'
 import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { handleFormError } from '@/lib/utils/error-handling'
-
-const PLATFORM_OPTIONS = [
-  'Windows',
-  'macOS',
-  'Linux',
-  'iOS',
-  'Android',
-  'Web',
-  'Docker',
-  'Cloud'
-]
+import { PLATFORM_OPTIONS } from '@/lib/constants'
 
 function isValidJsonObjectOrEmpty(value: string): boolean {
   if (!value.trim()) return true

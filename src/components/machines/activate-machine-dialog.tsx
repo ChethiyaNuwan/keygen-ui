@@ -35,6 +35,7 @@ import { getKeygenApi } from '@/lib/api'
 import { License } from '@/lib/types/keygen'
 import { handleFormError, handleLoadError } from '@/lib/utils/error-handling'
 import { toast } from 'sonner'
+import { PLATFORM_OPTIONS } from '@/lib/constants'
 
 function isValidPositiveIntOrEmpty(value: string): boolean {
   if (!value.trim()) return true
@@ -111,7 +112,7 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
         fingerprint: values.fingerprint,
         licenseId: values.licenseId,
         name: values.name.trim() || undefined,
-        platform: values.platform.trim() || undefined,
+        platform: values.platform && values.platform !== 'none' ? values.platform : undefined,
         hostname: values.hostname.trim() || undefined,
         cores: values.cores ? parseInt(values.cores, 10) : undefined,
         ip: values.ip.trim() || undefined
@@ -221,9 +222,21 @@ export function ActivateMachineDialog({ onMachineActivated }: ActivateMachineDia
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Platform</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Windows, macOS, Linux" {...field} />
-                      </FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a platform" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Unspecified</SelectItem>
+                          {PLATFORM_OPTIONS.map((platform) => (
+                            <SelectItem key={platform} value={platform}>
+                              {platform}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

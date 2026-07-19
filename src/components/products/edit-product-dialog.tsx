@@ -37,17 +37,7 @@ import { getKeygenApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Product } from '@/lib/types/keygen'
 import { handleCrudError } from '@/lib/utils/error-handling'
-
-const PLATFORM_OPTIONS = [
-  'Windows',
-  'macOS',
-  'Linux',
-  'iOS',
-  'Android',
-  'Web',
-  'Docker',
-  'Cloud'
-]
+import { PLATFORM_OPTIONS } from '@/lib/constants'
 
 function isValidJsonObjectOrEmpty(value: string): boolean {
   if (!value.trim()) return true
