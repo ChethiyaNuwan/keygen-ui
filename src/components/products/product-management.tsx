@@ -402,12 +402,14 @@ export function ProductManagement() {
       </Card>
 
       {/* Edit Product Dialog */}
-      <EditProductDialog
-        product={editProduct}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onProductUpdated={loadProducts}
-      />
+      {editProduct && (
+        <EditProductDialog
+          product={editProduct}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onProductUpdated={loadProducts}
+        />
+      )}
 
       {/* Delete Product Dialog */}
       <ProductTokensDialog

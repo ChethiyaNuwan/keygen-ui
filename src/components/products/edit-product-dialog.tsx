@@ -83,7 +83,7 @@ function productToFormValues(product: Product): ProductFormValues {
 }
 
 interface EditProductDialogProps {
-  product: Product | null
+  product: Product
   open: boolean
   onOpenChange: (open: boolean) => void
   onProductUpdated?: () => void
@@ -99,14 +99,12 @@ export function EditProductDialog({
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
-    defaultValues: product ? productToFormValues(product) : undefined,
+    defaultValues: productToFormValues(product),
   })
 
   // Initialize form data when product changes
   useEffect(() => {
-    if (product) {
-      form.reset(productToFormValues(product))
-    }
+    form.reset(productToFormValues(product))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product])
 
@@ -159,8 +157,6 @@ export function EditProductDialog({
 
   const loading = form.formState.isSubmitting
   const nameValue = form.watch('name')
-
-  if (!product) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
