@@ -94,6 +94,12 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
   const [loadingData, setLoadingData] = useState(true)
   const [userSearch, setUserSearch] = useState('')
   const [entitlementSearch, setEntitlementSearch] = useState('')
+  // Entitlement IDs already attached to whichever policy is selected —
+  // Keygen rejects attaching one of these directly to the license too
+  // (ENTITLEMENT_CONFLICT: "already exists (entitlement is attached
+  // through policy)"), so they're inherited automatically and excluded
+  // from the picker below rather than offered and left to fail.
+  const [policyEntitlementIds, setPolicyEntitlementIds] = useState<string[]>([])
 
   const api = getKeygenApi()
 
@@ -133,6 +139,29 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
     }
   }, [open, loadInitialData])
 
+  const policyId = form.watch('policyId')
+
+  useEffect(() => {
+    if (!policyId) {
+      setPolicyEntitlementIds([])
+      return
+    }
+    let cancelled = false
+    api.policies.getEntitlements(policyId).then((res) => {
+      if (cancelled) return
+      const ids = (res.data || []).map((e) => e.id)
+      setPolicyEntitlementIds(ids)
+      // Drop any manual selections that just became inherited — attaching
+      // them directly would now fail as a duplicate.
+      const current = form.getValues('selectedEntitlements')
+      if (current.some((id) => ids.includes(id))) {
+        form.setValue('selectedEntitlements', current.filter((id) => !ids.includes(id)))
+      }
+    }).catch((error: unknown) => handleLoadError(error, "policy's entitlements"))
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policyId, api.policies])
+
   const onSubmit = async (values: LicenseFormValues) => {
     try {
       const createRes = await api.licenses.create({
@@ -156,7 +185,15 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
       const createdId = createRes.data?.id
 
       if (createdId && values.selectedEntitlements.length > 0) {
-        await api.licenses.attachEntitlements(createdId, values.selectedEntitlements)
+        // Best-effort, same as the users attach below: the license already
+        // exists at this point, so a failure here (e.g. the policy started
+        // granting one of these between load and submit) shouldn't leave
+        // the dialog open looking like creation itself failed.
+        try {
+          await api.licenses.attachEntitlements(createdId, values.selectedEntitlements)
+        } catch (err) {
+          console.warn('Attaching entitlements failed:', err)
+        }
       }
 
       if (createdId && values.selectedUsers.length > 0) {
@@ -590,7 +627,8 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
                               <HelpCircle className="size-3.5 text-muted-foreground" />
                             </TooltipTrigger>
                             <TooltipContent>
-                              Entitlements will automatically be inherited from the policy (if any)
+                              Entitlements already attached to the selected policy are inherited
+                              automatically and hidden here — attaching them again would fail
                             </TooltipContent>
                           </Tooltip>
                         </div>
@@ -605,6 +643,7 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
                           <ScrollArea className="h-40">
                             <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                               {entitlements
+                                .filter((ent) => !policyEntitlementIds.includes(ent.id))
                                 .filter((ent) => {
                                   const q = entitlementSearch.toLowerCase();
                                   const name = String(ent.attributes.name || '').toLowerCase();
@@ -630,6 +669,12 @@ export function CreateLicenseDialog({ onLicenseCreated }: CreateLicenseDialogPro
                               {entitlements.length === 0 && (
                                 <div className="text-xs text-muted-foreground">No entitlements found</div>
                               )}
+                              {entitlements.length > 0 &&
+                                entitlements.every((ent) => policyEntitlementIds.includes(ent.id)) && (
+                                  <div className="text-xs text-muted-foreground">
+                                    All entitlements are already inherited from the selected policy
+                                  </div>
+                                )}
                             </div>
                           </ScrollArea>
                         </div>
