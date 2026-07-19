@@ -79,7 +79,13 @@ export function PolicyDetailsDialog({ policy, open, onOpenChange }: PolicyDetail
     if (open) {
       setEntitlementsLoaded(false)
       setPoolLoaded(false)
+      // Entitlements is the default (and often only, when usePool is false)
+      // tab — Radix's Tabs onValueChange only fires on an actual switch, not
+      // for the tab that's already active on mount, so handleTabChange's
+      // lazy-load never ran for it without this.
+      loadEntitlements()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, policy.id])
 
   const handleTabChange = (tab: string) => {
