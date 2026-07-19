@@ -408,6 +408,14 @@ export interface Token extends KeygenResource {
 export type ReleaseChannel = 'stable' | 'rc' | 'beta' | 'alpha' | 'dev';
 export type ReleaseStatus = 'DRAFT' | 'PUBLISHED' | 'YANKED';
 
+export interface ReleaseSemver {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string | null;
+  build: string | null;
+}
+
 export interface Release extends KeygenResource {
   type: 'releases';
   attributes: {
@@ -417,6 +425,9 @@ export interface Release extends KeygenResource {
     channel: ReleaseChannel;
     status: ReleaseStatus;
     tag?: string;
+    semver: ReleaseSemver;
+    /** `backdated_to` on the model — a timestamp, not a boolean. */
+    backdated?: string | null;
     metadata?: Record<string, unknown>;
     created: string;
     updated: string;
