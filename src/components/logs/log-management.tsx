@@ -21,6 +21,8 @@ import { ChevronLeft, ChevronRight, Eye, History, Activity } from 'lucide-react'
 import { handleLoadError } from '@/lib/utils/error-handling'
 import { formatDateTime } from '@/lib/utils/format'
 import { StatusBadge, StatusTone } from '@/components/shared/status-badge'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
 import { RequestLogDetailsSheet } from './request-log-details-sheet'
 
 const PAGE_SIZE = 25
@@ -191,11 +193,7 @@ export function LogManagement() {
                 </TableHeader>
                 <TableBody>
                   {eventLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        Loading event logs...
-                      </TableCell>
-                    </TableRow>
+                    <TableSkeleton rows={Math.min(PAGE_SIZE, 10)} columns={3} />
                   ) : eventLogs.length > 0 ? (
                     eventLogs.map((log) => (
                       <TableRow key={log.id}>
@@ -217,11 +215,16 @@ export function LogManagement() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                        No event logs found
-                      </TableCell>
-                    </TableRow>
+                    <EmptyState
+                      icon={History}
+                      colSpan={3}
+                      title="No event logs found"
+                      description={
+                        eventDateStart || eventDateEnd
+                          ? 'Try adjusting the date range'
+                          : 'Account activity will appear here as it happens'
+                      }
+                    />
                   )}
                 </TableBody>
               </Table>
@@ -311,11 +314,7 @@ export function LogManagement() {
                 </TableHeader>
                 <TableBody>
                   {requestLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        Loading request logs...
-                      </TableCell>
-                    </TableRow>
+                    <TableSkeleton rows={Math.min(PAGE_SIZE, 10)} columns={6} />
                   ) : requestLogs.length > 0 ? (
                     requestLogs.map((log) => (
                       <TableRow key={log.id}>
@@ -344,11 +343,16 @@ export function LogManagement() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        No request logs found
-                      </TableCell>
-                    </TableRow>
+                    <EmptyState
+                      icon={Activity}
+                      colSpan={6}
+                      title="No request logs found"
+                      description={
+                        requestDateStart || requestDateEnd
+                          ? 'Try adjusting the date range'
+                          : 'API requests will appear here as they happen'
+                      }
+                    />
                   )}
                 </TableBody>
               </Table>

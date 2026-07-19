@@ -28,6 +28,8 @@ import { toast } from 'sonner'
 import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 import { formatDateTime } from '@/lib/utils/format'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
 
 export function TokenManagement() {
   const api = getKeygenApi()
@@ -132,27 +134,28 @@ export function TokenManagement() {
           </Alert>
         )}
 
-        {loading ? (
-          <div className="text-muted-foreground flex h-20 items-center justify-center text-sm">
-            Loading tokens...
-          </div>
-        ) : tokens.length === 0 ? (
-          <div className="text-muted-foreground flex h-20 items-center justify-center text-sm">
-            No tokens found
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Kind</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Expires</TableHead>
-                <TableHead className="w-[70px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tokens.map((token) => (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Expires</TableHead>
+              <TableHead className="w-[70px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableSkeleton rows={5} columns={5} />
+            ) : tokens.length === 0 ? (
+              <EmptyState
+                icon={KeyRound}
+                colSpan={5}
+                title="No tokens found"
+                description="Create a token to authenticate API requests"
+              />
+            ) : (
+              tokens.map((token) => (
                 <TableRow key={token.id}>
                   <TableCell>
                     {token.attributes.name || <span className="text-muted-foreground italic">Unnamed</span>}
@@ -188,10 +191,10 @@ export function TokenManagement() {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
 
       <ConfirmDialog
