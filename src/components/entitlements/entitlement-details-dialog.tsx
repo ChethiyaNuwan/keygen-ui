@@ -1,12 +1,23 @@
 'use client'
 
-import { Entitlement } from '@/lib/types/keygen'
+import { useState, useEffect, useCallback } from 'react'
+import { Entitlement, Policy } from '@/lib/types/keygen'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Shield, KeyRound, Calendar, Info, Code } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils/format'
-// toast not needed; using centralized error handlers
+import { getKeygenApi } from '@/lib/api'
+import { toast } from 'sonner'
+import { handleLoadError, handleCrudError } from '@/lib/utils/error-handling'
 
 interface EntitlementDetailsDialogProps {
   entitlement: Entitlement
@@ -19,6 +30,48 @@ export function EntitlementDetailsDialog({
   open,
   onOpenChange
 }: EntitlementDetailsDialogProps) {
+  const api = getKeygenApi()
+
+  const [policies, setPolicies] = useState<Policy[]>([])
+  const [policiesLoading, setPoliciesLoading] = useState(false)
+  const [selectedPolicyId, setSelectedPolicyId] = useState('')
+  const [attaching, setAttaching] = useState(false)
+
+  const loadPolicies = useCallback(async () => {
+    try {
+      setPoliciesLoading(true)
+      const response = await api.policies.list({ limit: 100 })
+      setPolicies(response.data || [])
+    } catch (error: unknown) {
+      handleLoadError(error, 'policies')
+    } finally {
+      setPoliciesLoading(false)
+    }
+  }, [api.policies])
+
+  useEffect(() => {
+    if (open) {
+      setSelectedPolicyId('')
+      loadPolicies()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const handleAttach = async () => {
+    if (!selectedPolicyId) return
+    try {
+      setAttaching(true)
+      await api.policies.attachEntitlements(selectedPolicyId, [entitlement.id])
+      const policy = policies.find((p) => p.id === selectedPolicyId)
+      toast.success(`Attached to ${policy?.attributes.name ?? 'policy'}`)
+      setSelectedPolicyId('')
+    } catch (error: unknown) {
+      handleCrudError(error, 'create', 'Entitlement')
+    } finally {
+      setAttaching(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
@@ -82,27 +135,44 @@ export function EntitlementDetailsDialog({
             </CardContent>
           </Card>
 
-          {/* Where this entitlement is used.
+          {/* Attach to a policy.
 
-              Keygen has no endpoint for "which licences carry this entitlement"
-              — /entitlements is a flat resource and /licenses has no entitlement
-              filter — so this explains the relationship rather than faking a list. */}
+              Keygen has no endpoint for "which policies/licences already carry
+              this entitlement" — /entitlements is a flat resource, and neither
+              /policies nor /licenses support filtering by entitlement — so
+              there's no cheap way to show current attachment state here (it
+              would mean one /policies/:id/entitlements call per policy). This
+              only offers the one-way attach action; detaching, or checking
+              what's already attached, stays on the policy/licence's own
+              details dialog, which already loads its own attached list. */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="h-4 w-4" />
-                Where it applies
+                Attach to a policy
               </CardTitle>
               <CardDescription>
-                Entitlements are attached to licences and policies, not the other way round
+                Grants this entitlement to every licence under the chosen policy.
+                For a one-off grant to a single licence, attach it from that
+                licence&apos;s own details dialog instead.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm">
-                Attach this entitlement to a <strong>policy</strong> to grant it to every
-                licence under that policy, or to an individual <strong>licence</strong> for
-                a one-off. Do that from the policy or licence itself.
-              </p>
+            <CardContent className="flex items-center gap-2">
+              <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder={policiesLoading ? 'Loading policies…' : 'Select a policy'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {policies.map((policy) => (
+                    <SelectItem key={policy.id} value={policy.id}>
+                      {policy.attributes.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={handleAttach} disabled={!selectedPolicyId || attaching}>
+                {attaching ? 'Attaching…' : 'Attach'}
+              </Button>
             </CardContent>
           </Card>
 
