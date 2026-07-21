@@ -62,6 +62,21 @@ function relationshipId(license: License, key: string): string | undefined {
 export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpdated }: LicenseDetailsDialogProps) {
   const api = getKeygenApi()
 
+  // The `license` prop is a snapshot from whenever the table was last
+  // fetched, so it goes stale as soon as the record changes server-side
+  // (edited elsewhere, expiry ticking over, etc.). Re-fetch on open so the
+  // dialog always shows the current status/expiry rather than a cached one.
+  const [currentLicense, setCurrentLicense] = useState<License>(license)
+
+  const refreshLicense = useCallback(async () => {
+    try {
+      const response = await api.licenses.get(license.id)
+      if (response.data) setCurrentLicense(response.data)
+    } catch (error: unknown) {
+      handleLoadError(error, 'license')
+    }
+  }, [api.licenses, license.id])
+
   // Overview / relationships
   const [policies, setPolicies] = useState<Policy[]>([])
   const [owners, setOwners] = useState<User[]>([])
@@ -104,9 +119,9 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
   const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false)
   const [revoking, setRevoking] = useState(false)
 
-  const policyId = relationshipId(license, 'policy')
-  const ownerId = relationshipId(license, 'owner')
-  const groupId = relationshipId(license, 'group')
+  const policyId = relationshipId(currentLicense, 'policy')
+  const ownerId = relationshipId(currentLicense, 'owner')
+  const groupId = relationshipId(currentLicense, 'group')
 
   const loadRelationshipOptions = useCallback(async () => {
     try {
@@ -175,6 +190,8 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
 
   useEffect(() => {
     if (open) {
+      setCurrentLicense(license)
+      refreshLicense()
       loadRelationshipOptions()
       setMachinesLoaded(false)
       setEntitlementsLoaded(false)
@@ -192,7 +209,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
   }
 
   const copyKey = () => {
-    navigator.clipboard.writeText(license.attributes.key)
+    navigator.clipboard.writeText(currentLicense.attributes.key)
     toast.success('License key copied to clipboard')
   }
 
@@ -218,6 +235,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
       }
       toast.success('License updated successfully')
       setEditingRelationship(null)
+      await refreshLicense()
       onLicenseUpdated()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'License')
@@ -313,6 +331,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
       setCheckingIn(true)
       await api.licenses.checkIn(license.id)
       toast.success('License checked in')
+      await refreshLicense()
       onLicenseUpdated()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'License', { customMessage: 'Failed to check in license' })
@@ -326,6 +345,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
       setResettingUsage(true)
       await api.licenses.resetUsage(license.id)
       toast.success('Usage reset')
+      await refreshLicense()
       onLicenseUpdated()
     } catch (error: unknown) {
       handleCrudError(error, 'update', 'License', { customMessage: 'Failed to reset usage' })
@@ -360,7 +380,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
-              {license.attributes.name || 'License Details'}
+              {currentLicense.attributes.name || 'License Details'}
             </DialogTitle>
             <DialogDescription>
               Inspect and manage this license&apos;s machines, entitlements, users, and lifecycle.
@@ -385,7 +405,7 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
                 <CardContent>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 text-sm bg-muted px-2 py-1.5 rounded font-mono break-all">
-                      {license.attributes.key}
+                      {currentLicense.attributes.key}
                     </code>
                     <Button variant="outline" size="sm" onClick={copyKey}>
                       <Copy className="h-3.5 w-3.5" />
@@ -402,25 +422,25 @@ export function LicenseDetailsDialog({ license, open, onOpenChange, onLicenseUpd
                   <div>
                     <Label className="text-muted-foreground">Status</Label>
                     <p className="text-sm mt-1">
-                      <Badge variant="outline">{license.attributes.status.toLowerCase()}</Badge>
+                      <Badge variant="outline">{currentLicense.attributes.status.toLowerCase()}</Badge>
                     </p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Usage</Label>
                     <p className="text-sm mt-1 tabular-nums">
-                      {license.attributes.uses || 0}
-                      {license.attributes.maxUses ? ` / ${license.attributes.maxUses}` : ' (unlimited)'}
+                      {currentLicense.attributes.uses || 0}
+                      {currentLicense.attributes.maxUses ? ` / ${currentLicense.attributes.maxUses}` : ' (unlimited)'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Expiry</Label>
                     <p className="text-sm mt-1">
-                      {license.attributes.expiry ? formatDateTime(license.attributes.expiry) : 'Never'}
+                      {currentLicense.attributes.expiry ? formatDateTime(currentLicense.attributes.expiry) : 'Never'}
                     </p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Created</Label>
-                    <p className="text-sm mt-1">{formatDateTime(license.attributes.created)}</p>
+                    <p className="text-sm mt-1">{formatDateTime(currentLicense.attributes.created)}</p>
                   </div>
                 </CardContent>
               </Card>
